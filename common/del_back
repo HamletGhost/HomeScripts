@@ -1,0 +1,11 @@
+#!/bin/sh
+
+[ -n "$DEPTH" ] && OPTIONS+=" -maxdepth $DEPTH"
+
+if [ "$1" == "now" ]; then
+	shift
+	COMMAND+=" -exec rm -f {} ;"
+fi
+
+
+find $* -name '*~' ${OPTIONS} -ls ${COMMAND}

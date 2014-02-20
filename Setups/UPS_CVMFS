@@ -1,0 +1,8 @@
+echo "Accessing CVMFS setup"
+if [[ ! -r "/cvmfs/oasis.opensciencegrid.org/fermilab/products/common/etc/setup" ]]; then
+	echo "CVMFS (or its UPS setup for the common repository) is not accessible" >&2
+	return 2
+fi
+echo "Setting UPS (common repository) up from CVMFS"
+source /cvmfs/oasis.opensciencegrid.org/fermilab/products/common/etc/setup
+

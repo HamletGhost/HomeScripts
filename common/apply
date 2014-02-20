@@ -1,0 +1,117 @@
+#!/bin/sh
+#
+
+SCRIPTNAME=$(basename "$0")
+# CWD=$(pwd)
+
+: ${CMDSEP:="--"}
+: ${FILESUBST:="{}"}
+: ${SEDSEP:="'"}
+
+function help() {
+	cat <<EOH
+
+Usage:  $SCRIPTNAME  files-spec $CMDSEP command
+
+The command is applied on all files in files-spec, one call for each file.
+The file specification is expanded by the command call.
+You should place a '$FILESUBST' string where the file name should be inside the command;
+if no '$FILESUBST' is found, the file name is placed at the end of the command line.
+
+About expansion:
+
+$SCRIPTNAME *.txt $CMDSEP ls $FILESPEC
+
+will call a 'ls' for each txt file, since the expansion is done by the shell before executing $SCRIPTNAME.
+
+$SCRIPTNAME "*.txt" $CMDSEP ls $FILESPEC
+
+will call just one 'ls' and the expansion will be performed by shell when 'ls' is called.
+I can't think of any simple way to postpone the expansion to the called program (e.g. let 'ls' handle "*.txt" string).
+
+Example:
+
+$SCRIPTNAME *.txt $CMDSEP mv $FILESPEC /tmp
+
+moves all text files to /tmp.
+
+EOH
+# '
+}
+
+function isFlagOn() {
+	VARNAME="$1"
+	[ -n "${!VARNAME}" ] && [ "${!VARNAME}" != 0 ]
+}
+
+function isDebug() {
+	isFlagOn DEBUG
+}
+
+function DBG() {
+	isDebug && echo $*
+}
+
+function ERROR() {
+	echo $* >&2
+}
+
+function FATAL() {
+	CODE=$1
+	shift
+	ERROR $*
+	exit $CODE
+}
+
+if [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
+	help
+	exit 0
+fi
+
+# find the command separator
+for ((iCmd = 1 ; iCmd <= $# ; ++iCmd )); do [ "${!iCmd}" == "$CMDSEP" ] && break ; done
+
+# extract file specification
+declare -a FileSpec
+for (( iParam = 0; iParam <= $# ; ++iParam )); do
+	Param=${!iParam}
+	[ "${Param}" == "$CMDSEP" ] && break
+	
+	DBG "Adding '$Param' to file specifications"
+	FileSpec[$iParam]="$Param"
+done
+DBG "Files specifications: ${FileSpec[@]}"
+[ ${#FileSpec[*]} == 0 ] && FATAL 1 "No file specification provided."
+
+# extract command
+DBG "Separator '$CMDSEP' found in position $iParam"
+: $((++iParam))
+iStartCmd=$iParam
+
+FileHolders=0
+declare -a CMD
+for (( iParam = iStartCmd; iParam <= $#; ++iParam )); do
+	TOKEN="${!iParam}"
+	DBG "Token $iParam: '$TOKEN'"
+	echo "$TOKEN" | grep -q "$FILESUBST" && $((++FileHolders))
+	CMD[$iParam-$iStartCmd]="$TOKEN"
+done
+DBG "${FileHolders} file placeholders found."
+[ ${#CMD[*]} == 0 ] && FATAL 1 "No command provided."
+
+nCmds=${#CMD[*]}
+[ ${FileHolders} == 0 ] && CMD[$((nCmds++))]="$FILESUBST"
+DBG "$nCmds command tokens: '${CMD[@]}'"
+
+# execution
+for F in "${FileSpec[@]}" ; do
+	unset ThisCmd
+	declare -a ThisCmd
+	DBG "On file spec '$F'"
+	for (( i = 0 ; i < $nCmds ; ++i )); do
+		DBG echo "${CMD[$i]}" \| sed -e "s${SEDSEP}${FILESUBST}${SEDSEP}${F}${SEDSEP}g"
+		ThisCmd[$i]=$(echo "${CMD[$i]}" | sed -e "s${SEDSEP}${FILESUBST}${SEDSEP}${F}${SEDSEP}g")
+	done
+	DBG "Command: '${ThisCmd[@]}'"
+	isDebug || eval "${ThisCmd[@]}"
+done

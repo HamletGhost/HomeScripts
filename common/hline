@@ -1,0 +1,14 @@
+#!/bin/sh
+
+: ${ATOM:=" - *"}
+: ${LENGTH:=80}
+
+ATOMLENGTH=${#ATOM}
+NATOMS=$((LENGTH / ATOMLENGTH))
+
+[ -n "$1" ] && LENGTH="$1"
+
+echo -ne "\e[31m"
+for (( i = 0; i < $NATOMS ; ++i )); do echo -n "$ATOM" ; done
+echo -e "\e[0m"
+

@@ -1,0 +1,34 @@
+#!/bin/bash
+# sets up the local bin directories
+
+function setup_bin_setup() {
+	local SourcedFile="$1"
+	local SetupDir="$(readlink -f "$(dirname "$SourcedFile")")"
+	local BinDir="$(dirname "${SetupDir:-"${HOME}/bin/Setups"}")"
+	
+	echo "Local bin dir: '${BinDir}'"
+
+	local FunctionsScript="${BinDir}/bin/functions.sh"
+	[[ -r "$FunctionsScript" ]] && source "$FunctionsScript"
+	
+	echo Check
+	AddToPath -d PATH "$BinDir"
+	echo Mark
+
+	local ExtraDirList="${BinDir}/ExtraBinDirs"
+	if [[ -r "$ExtraDirList" ]]; then
+		local ExtraDirName
+		while read ExtraDirName ; do
+			[[ -z "$ExtraDirName" ]] && continue
+			[[ "${ExtraDirName:0:1}" == '#' ]] && continue
+			local ExtraDir="${BinDir}/${ExtraDirName}"
+			AddToPath -d PATH "$ExtraDir"
+			local ExtraDirSetup="${ExtraDir}/BinDirSetup"
+			[[ -r "$ExtraDirSetup" ]] && source "$ExtraDirSetup"
+		done < "$ExtraDirList"
+	fi
+} # setup_bin_setup()
+
+setup_bin_setup "$BASH_SOURCE"
+unset -f setup_bin_setup
+

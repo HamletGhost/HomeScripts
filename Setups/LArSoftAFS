@@ -1,0 +1,4 @@
+Setup AFS
+
+[[ -d "${AFSHOME}/LArSoft/software/scripts" ]] && AddToPath PATH "${AFSHOME}/LArSoft/software/scripts"
+

@@ -1,0 +1,69 @@
+#!/bin/sh
+
+: ${POLLTIME:="10"}
+
+: ${dd:="dd"}
+: ${kill:="kill"}
+
+
+function isFlagSet() {
+	local VarName="$1"
+	[[ -n "${!VarName}" ]] && [[ "${!VarName}" != 0 ]]
+}
+
+function isDebugging() {
+	isFlagSet DEBUG
+}
+
+
+function ERROR() {
+	echo "$*" >&2
+}
+
+function FATAL() {
+	local Code="$1"
+	shift
+	ERROR "$*"
+	exit $Code
+}
+
+function DBG() {
+	isDebugging && ERROR "$*"
+}
+
+
+if [[ $# -gt 1 ]]; then
+	# we do start the dd session
+	echo $dd "$@"
+	isFlagSet FAKE && exit
+	$dd "$@" &
+	PID=$!
+	FORCE=1
+elif [[ -z "$1" ]]; then
+	# find the first dd session
+	PID="$(ps --noheader -C "$dd" -o pid | head -n 1 2>/dev/null)"
+else
+	# use provided PID
+	PID="$1"
+fi
+
+if [[ -z "$PID" ]]; then
+	FATAL 1 "No $dd session found."
+fi
+
+# check: is that dd?
+COMM="$(ps --noheader -o comm $PID)"
+if [[ "$COMM" != "dd" ]]; then
+	if isFlagSet FORCE ; then
+		ERROR "Warning: process $PID seems not to be a dd session."
+	else
+		FATAL 1 "Process $PID is not a dd session (use FORCE=1 to ignore)."
+	fi
+fi
+
+for ((;;)); do
+	DBG $kill -USR1 $PID
+	$kill -USR1 $PID >& /dev/null
+	[[ $? != 0 ]] && break
+	sleep $POLLTIME
+done

@@ -1,0 +1,6 @@
+# sets up AFS (fnal.gov in particular)
+
+StartAFS.sh
+AFSUSER="petrillo"
+AFSHOME="/afs/fnal.gov/files/home/room1/${AFSUSER}"
+

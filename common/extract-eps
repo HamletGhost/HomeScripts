@@ -1,0 +1,78 @@
+#!/usr/bin/perl
+# Usage: extract-eps [-a] [-l] [-n] [-fig] [ps-files ...]
+#                                                         --gnome
+
+# ... 1: always overwrite, 0: ask, -1: never overwrite
+$overwrite = 0;
+$listonly = 0;
+$add_figno = 0;
+$have_ps2epsi = 1;
+$tmpfile = ".tmpextract.eps";
+$needhelp = 0;
+foreach $text (@ARGV)  {
+  last if (!($text=~/^-/));
+  if ($text=~/-a/) {$overwrite = 1}
+  elsif ($text=~/-n/) {$overwrite = -1}
+  elsif ($text=~/-l/) {$listonly = 1}
+  elsif ($text=~/-fig/) {$add_figno = 1}
+  elsif ($text=~/-[\?hH]/) {goto HELP}
+  else {print "Unrecognized option $text \n"; $need_help = 1};
+  shift(@ARGV);
+}
+goto HELP if ($need_help);
+
+$epsfile_open = 0;
+$figno = 0;
+$oldfile = '000000';
+while (<>) {
+  if ($oldfile ne $ARGV) {
+    $oldfile = $ARGV;
+    $text = $listonly ? "Listing" : "Extracting" ;
+    print "\n$text eps files ", (($ARGV ne "-") ? "from $oldfile " : ""), "...\n";}
+  if (!$epsfile_open) {
+    next if (!/^%%BeginDocument:/);
+    ($epsfile) = /^%%BeginDocument:\s*(\S+)/;
+    if ($epsfile=~/\//) {$epsfile =~ s/.*\///;}
+    ++$figno;
+    if ($add_figno) {$epsfile = "fig$figno-$epsfile"};
+    if ($listonly) {
+      print "    Found file $epsfile \n";
+      next;
+    }
+    if (-e $epsfile) {
+      next if ($overwrite < 0);
+      if ($overwrite == 0) {
+        print " >>> File $epsfile already exists, overwrite? [<CR>=no] ";
+        $text = <STDIN>;
+        $overwrite = 1 if ($text=~/^\s*Y/);
+        $overwrite = -1 if ($text=~/^\s*N/);
+        next if (!($text=~/^\s*y/i));
+      }
+    }
+    open (EPS,">$epsfile");
+    $epsfile_open = 1;
+  } else {
+    if (!/^%%EndDocument/) {print EPS "$_" ; next}
+    close (EPS);
+    print "    Extracted file $epsfile";
+    $epsfile_open = 0;
+    if (!$have_ps2epsi) {print "\n"; next}; 
+    eval `ps2epsi $epsfile $tmpfile`;
+    if ($@) {$have_ps2epsi = 0} 
+    else {eval `mv $tmpfile $epsfile`; print " ... created bounding box"};
+    print "\n";
+  }
+}
+print "Done.\n\n";
+if (!$have_ps2epsi) {
+  print "NOTE: could not create bounding boxes with ps2epsi.\n\n"}
+exit(0);
+
+HELP:
+print "\nUsage:   extract-eps [-a] [-n] [-l] [ps_files ...]\n";
+print "\n  -a       : always overwrite existing eps files";
+print "\n  -n       : never overwrite existing eps files";
+print "\n  -l       : only list eps files, do not extract";
+print "\n  -fig     : prefix extracted eps filenames with fig#";
+print "\n  ps_files : postscript taken from STDIN if ps_files not provided \n";
+print "\n"; exit(0);
