@@ -1,0 +1,12 @@
+#!/bin/sh
+
+[[ -z "$REMOTEHOST" ]] && REMOTEHOST="$(basename "${0%.*}")"
+if [[ "$REMOTEHOST" == "localsshell" ]]; then
+	REMOTEHOST="$1"
+	shift
+fi
+
+REMOTEUSER="$(whoami)"
+REMOTEDOMAIN="thebard.net"
+export REMOTEUSER REMOTEHOST REMOTEDOMAIN
+sshell "$@"

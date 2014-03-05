@@ -1,0 +1,6 @@
+#!/bin/sh
+
+SCRIPTNAME="$(basename "$0")"
+
+USERINSTANCE="$USERINSTANCE" REMOTEHOST="cmslpc-sl5" fnal "$@"
+

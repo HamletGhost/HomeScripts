@@ -1,0 +1,280 @@
+#!/bin/sh
+
+SCRIPTNAME="$(basename "$0")"
+SCRIPTDIR="$(dirname "$0")"
+CWD="$(pwd)"
+
+: ${LEFTVARSEP:='%'}
+: ${RIGHTVARSEP:="$LEFTVARSEP"}
+
+
+: ${MODE:="${M:-"shell"}"}
+: ${REMOTEUSER:="petrillo"}
+: ${REMOTEHOST:="$1"}
+: ${REMOTEDOMAIN:="fnal.gov"}
+: ${KRB5REALM:=""}
+: ${SSH:="ssh -l %REMOTEUSERKEY%"}
+: ${SSHOPT:="-XY"}
+: ${RSYNC="rsync"}
+: ${SCP:="$RSYNC -e \"${SSH}\""}
+: ${SCPOPT:="-av"}
+
+: ${USECOMPACTHOSTKEY:="0"}
+
+: ${KRB5LIFETIME:="26h"}
+: ${KRB5RENEWTIME:="7d"}
+: ${KRB5OPTS:="-f"}
+: ${NAT:="0"}
+
+: ${kinit:="kinit"}
+: ${mkdir:="mkdir -p"}
+: ${rmdir:="rmdir"}
+
+: ${KRB5BASECCDIR:="${HOME}/tmp/krb5"}
+
+function isFlagSet() {
+	local VARNAME="$1"
+	[[ -n "${!VARNAME//0}" ]]
+}
+
+function isFlagUnset() {
+	local VARNAME="$1"
+	[[ -z "${!VARNAME//0}" ]]
+}
+
+function isFlagOver() {
+	local VARNAME="$1"
+	local Threshold="${2:-"0"}"
+	[[ -n "${!VARNAME}" ]] && [[ "${!VARNAME}" -gt "$Threshold" ]]
+}
+
+function ERROR() {
+	echo "$*" >&2
+}
+
+function ERRORN() {
+	echo -n "$*" >&2
+}
+
+function FATAL() {
+	local code=$1
+	shift
+	ERROR "$SCRIPTNAME - Fatal error: $*"
+	exit $code
+}
+
+function isDebugging() {
+	isFlagOver DEBUG $1
+}
+
+function DBG() {
+	isDebugging && ERROR "$*"
+}
+
+function CMDDBG() {
+	isDebugging || return
+	for Par in "$@" ; do ERRORN "'${Par}' " ; done
+	ERROR ""
+}
+
+function DUMPVAR() {
+	local VarName="$1"
+	DBG "${VarName}='${!VarName}'"
+}
+
+function DUMPVARS() {
+	isDebugging || return
+	local VarName
+	for VarName in "$@" ; do
+		DUMPVAR "$VarName"
+	done
+}
+
+
+function SubstVars() {
+	local Key="$1"
+	local Result="$Key"
+	while true; do
+		local VarName="$(echo "$Key" | sed -e "s/.*${LEFTVARSEP}\(.*\)${RIGHTVARSEP}.*/\1/")"
+		[[ "$VarName" == "$Key" ]] && break
+		DBG "Replacing variable '${VarName}' in '${Key}'"
+		local VarValue="${!VarName}"
+		Result="$(echo "$Key" | sed -e "s/${LEFTVARSEP}${VarName}${RIGHTVARSEP}/${VarValue}/g")"
+		DBG " -> '${Result}' (${VarName}='${VarValue}')"
+		[[ "$Result" == "$Key" ]] && ERROR "Failed to substitute '${VarName}' variable." && return 1
+		Key="$Result"
+	done
+	echo "$Result"
+	return 0
+}
+
+
+function help() {
+	cat <<EOH
+
+Usage:  $SCRIPTNAME [options]
+
+This script can be used in different modes, selected by the MODE environment variable:
+- "shell": an interactive ssh connection is opened
+- "write": files are transferred to the remote host
+- "read": files are copied from the remote host
+
+Modes (MODE variable, default: '${MODE}'):
+"shell": $SCRIPTNAME [ssh options]
+	Just opens a shell with specified ssh options together with the default ones from SSHOPT variable;
+"read": $SCRIPTNAME SourcesSpec DestinationDir
+	Copies specified remote files to a local directory
+	- SourcesSpec: path of files to be copied, remote host specification must be omitted
+	- DestinationDir: destination directory in local host; it's created if not existing
+"write": $SCRIPTNAME SourcesSpec DestinationDir
+	Copies files to a specified directory of the remote host
+	- SourcesSpec are the files to be copied to the remote host
+
+
+Variables:
+REMOTEUSER ('$REMOTEUSER'), REMOTEHOST ('$REMOTEHOST'), REMOTEDOMAIN ('$REMOTEDOMAIN')
+	the parameters specifying the target, including host and user
+SSHOPT ('$SSHOPT'):
+	options for ssh connection
+MODE ('$MODE'; shortcut: "M")
+	see above
+REPLICATE ('$REPLICATE') [experimental]
+	in copy modes, it copies the files in the same directory as the original;
+	if specified, the destination parameter must not be specified and the last
+	parameter will be considered a source as well.
+	All the files are copied in the same directory as the FIRST of the sources;
+	if it is a relative path, it will start from HOME directory (the HOME on the
+	destination host), unless "RELATIVE" flag is set, in which case the current
+	directory (minus the local HOME header) is taken as base
+
+EOH
+	[[ -n "$1" ]] && exit $1
+}
+
+if [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]] || [[ "$1" == "-?" ]]; then
+	help 0
+fi
+
+REMOTEPATH=${REMOTEHOST}
+REMOTEHOSTNAME="${REMOTEPATH/.*}"
+[[ -n "$REMOTEDOMAIN" ]] && [[ "$REMOTEHOST" == "$REMOTEHOSTNAME" ]] && REMOTEPATH="${REMOTEPATH}.${REMOTEDOMAIN}"
+[[ -n "$REMOTEUSER" ]] && REMOTEPATH="${REMOTEUSER}@${REMOTEPATH}"
+[[ -z "$REMOTEUSER" ]] && REMOTEUSER="${REMOTEPATH/@*}"
+REMOTEUSERKEY="$REMOTEUSER"
+[[ -n "$USERINSTANCE" ]] && REMOTEUSERKEY="${REMOTEUSERKEY}/${USERINSTANCE}"
+
+if isFlagSet FAKE ; then
+	FAKECMD='echo'
+else
+	FAKECMD='eval'
+fi
+
+if [[ -n "$USERINSTANCE" ]]; then
+	KRB5CCNAME="${KRB5BASECCDIR}/${KRB5USER:-"$REMOTEUSER"}/${USERINSTANCE:-"${KRB5USER:-"$REMOTEUSER"}"}"
+	export KRB5CCNAME
+#	KRB5CCOPT="-c ${KRB5CCNAME}"
+	[[ -n "$KRB5REALM" ]] && DBG "Using Kerberos5 cache in '${KRB5CCNAME}'"
+fi
+
+# Kerberos ticket authomatic support
+if ! isFlagSet NOTICKET && [[ -n "$KRB5REALM" ]]; then
+	$kinit -R >& /dev/null
+	res=$?
+	if [[ $res != 0 ]]; then
+		[[ -z "$KRB5FULLUSER" ]] && KRB5FULLUSER="${KRB5USER:-"$REMOTEUSERKEY"}@${KRB5REALM}"
+		[[ -n "$KRB5LIFETIME" ]] && KRB5OPTS="${KRB5OPTS} -l${KRB5LIFETIME} -r${KRB5RENEWTIME}"
+		[[ -n "$KRB5RENEWTIME" ]] && KRB5OPTS="${KRB5OPTS} -r${KRB5RENEWTIME}"
+		isFlagSet NAT && KRB5OPTS="${KRB5OPTS} -n"
+		echo "Getting a new Kerberos5 ticket: prepare your password."
+		$FAKECMD $kinit $KRB5OPTS "$KRB5FULLUSER"
+		res=$?
+	fi
+	if [[ $res != 0 ]]; then
+		ERROR "Couldn't get a new Kerberos5 ticket. Hope there is a valid, existing one."
+	fi
+fi
+
+if isFlagSet USECOMPACTHOSTKEY ; then
+	MyRemotePath="$REMOTEPATH"
+else
+	MyRemotePath="${REMOTEPATH/#${REMOTEUSER}@/}"
+fi
+
+MySSH="$(SubstVars "$SSH")"
+MySSHOPT="$(SubstVars "$SSHOPT")"
+MySCP="$(SubstVars "$SCP")"
+MySCPOPT="$(SubstVars "$SCPOPT")"
+case "$MODE" in
+	( "shell" | "sh" )
+		CMDDBG $MySSH $MySSHOPT "$@" "$MyRemotePath"
+		$FAKECMD $MySSH $MySSHOPT "$@" "$MyRemotePath"
+		;;
+	( "read" )
+		declare -i NParams="$#"
+		declare -i nSources=$(($NParams - 1))
+		if isFlagUnset REPLICATE && [[ "$NParams" -ge 2 ]]; then
+			DESTDIR="${!NParams}"
+		else
+			REPLICATE=1
+			let ++nSources
+		fi
+		DBG "${nSources} source files${REPLICATE:+" (replication mode: ${REPLICATE})"}."
+		declare -a Sources
+		for (( i = 1 ; i <= $nSources ; ++i )); do
+			Sources[$i]="${MyRemotePath}:${!i}"
+		done
+		[[ "${#Sources[*]}" == 0 ]] && FATAL 1 "must specify remote source files"
+		if isFlagSet REPLICATE ; then
+			DESTDIR="$(dirname "${Sources[0]}")"
+			if [[ "${DESTDIR:0:1}" != "/" ]]; then # complete the relative path
+				if ! isFlagSet RELATIVE ; then
+					DESTDIR="${HOME}/${DESTDIR}"
+				fi
+			fi
+		else
+			[[ -z "$DESTDIR" ]] && FATAL 1 "must specify local destination directory"
+		fi
+		
+		isFlagSet FAKE || $mkdir "$DESTDIR" >& /dev/null
+		DBG $MySCP $MySCPOPT "${Sources[@]}" "$DESTDIR"
+		$FAKECMD $MySCP $MySCPOPT "${Sources[@]}" "$DESTDIR"
+		[[ $? != 0 ]] && $rmdir "$DESTDIR" >& /dev/null
+		
+		;;
+	( "write" )
+		declare -i NParams="$#"
+		declare -i nSources=$(($NParams - 1))
+		if isFlagUnset REPLICATE && [[ "$NParams" -ge 2 ]]; then
+			DESTDIR="${!NParams}"
+		else
+			REPLICATE=1
+			let ++nSources
+			DBG "Replicating directory structure on remote destination."
+		fi
+		declare -a Sources
+		for (( i = 1 ; i <= $nSources ; ++i )); do
+			Sources[$i]="${!i}"
+		done
+		[[ "${#Sources[*]}" == 0 ]] && FATAL 1 "must specify local source files"
+		if isFlagSet REPLICATE ; then
+			DESTDIR="$(dirname "${Sources[0]}")"
+			if [[ "${DESTDIR:0:1}" != "/" ]]; then # complete the relative path
+				if isFlagSet RELATIVE ; then
+					[[ "$CWD" != "$HOME" ]] && DESTDIR="${CWD/#"$HOME"\//}/${DESTDIR}"
+				fi
+			fi
+			[[ "$DESTDIR" == "." ]] && DESTDIR=""
+			if [[ "${#Sources[*]}" -gt 1 ]]; then
+				ERROR "Beware: ALL files will be copied in the directory of the FIRST source ('${DESTDIR}')"
+			fi
+		else
+			[[ -z "$DESTDIR" ]] && FATAL 1 "must specify local destination directory"
+		fi
+		DBG $MySCP $MySCPOPT "${Sources[@]}" "${MyRemotePath}:${DESTDIR}"
+		$FAKECMD $MySCP $MySCPOPT "${Sources[@]}" "${MyRemotePath}:${DESTDIR}"
+		;;
+	( * )
+		FATAL 1 "unsupported mode '$MODE'."
+		;;
+esac
+

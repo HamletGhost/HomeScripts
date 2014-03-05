@@ -1,0 +1,4 @@
+#!/bin/sh
+
+CLUED0HOSTNAME="chocolate" clued0 "$@"
+

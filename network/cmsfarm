@@ -1,0 +1,6 @@
+#!/bin/sh
+
+: ${CMSN:="3"}
+
+REMOTEUSER='petrillo' REMOTEDOMAIN="to.infn.it" REMOTEHOST="cmsfarm$(printf '%02d' ${CMSN}).to.infn.it" sshell "$@"
+

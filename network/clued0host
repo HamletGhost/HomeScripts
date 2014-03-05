@@ -1,0 +1,4 @@
+#!/bin/sh
+
+CLUED0HOSTNAME="${CLUED0HOSTNAME:="$(basename "$0")"}" clued0 "$@"
+
