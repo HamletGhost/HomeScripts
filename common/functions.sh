@@ -106,6 +106,21 @@ function DUMPVARS() {
 	done
 } # DUMPVARS()
 
+function PrintBashCallStack() {
+	#
+	# PrintBashCallStack [Levels]
+	#
+	# Prints a list of the callers of the current function (this one excluded).
+	# Prints at most Levels callers, or all of them if not specified or non-positive.
+	# It always prints at least one caller (if available).
+	#
+	local -i Limit=${1:-"0"}
+	local -i StackFrameNo=0
+	while caller $((++StackFrameNo)) ; do [[ $StackFrameNo == $Limit ]] && break ; done
+	return 0
+} # PrintBashCallStack()
+
+
 function AppendSlash() {
 	local DirName="$1"
 	if [[ -n "$DirName" ]]; then
