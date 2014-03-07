@@ -22,7 +22,7 @@ function Setup() {
 		local TargetSetupScript="$SetupScript"
 		local SetupDir="$(dirname "$TargetSetupScript")"
 		local SetupScriptName="$(basename "$TargetSetupScript")"
-		[[ $Quiet -le 0 ]] || echo "${Indent}Setup (${SetupScriptName}) from '${SetupDir}'"
+		[[ $Quiet -le 0 ]] && echo "${Indent}Setup (${SetupScriptName}) from '${SetupDir}'"
 		pushd "$SetupDir" > /dev/null
 		shift
 		local ReturnCode
