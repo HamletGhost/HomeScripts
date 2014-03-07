@@ -1,0 +1,27 @@
+# shortcut to source setup scripts stored in ${HOME}/bin/Setup
+
+ROOT_SCRIPTS_DIR="$(dirname "${BASH_SOURCE:-${HOME}/bin/Setups}")"
+if [[ ! -d "$ROOT_SCRIPTS_DIR" ]]; then
+	echo "WARNING: script directory '${ROOT_SCRIPTS_DIR}' not found" >&2
+fi
+
+function Setup() {
+	local Package="$1"
+	local Indent="$2" # cosmetic
+	local SetupScript="${ROOT_SCRIPTS_DIR}/Setups/${Package}"
+	[[ -r "$SetupScript" ]] || SetupScript="${ROOT_SCRIPTS_DIR}/${Package}/setup"
+	if [[ -r "$SetupScript" ]]; then
+		local TargetSetupScript="$(readlink -f "$SetupScript")"
+		local SetupDir="$(dirname "$TargetSetupScript")"
+		local SetupScriptName="$(basename "$TargetSetupScript")"
+		echo "${Indent}Setup (${SetupScriptName}) from '${SetupDir}'"
+		pushd "$SetupDir" > /dev/null
+		shift
+		source "./${SetupScriptName}" "$@"
+		popd > /dev/null
+	else
+		# fallback on an existing setup (e.g. UPS)
+		echo "${Indent}setup $@"
+		setup "$@"
+	fi
+} # Setup()
