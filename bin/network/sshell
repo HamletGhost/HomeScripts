@@ -209,6 +209,10 @@ case "$MODE" in
 		CMDDBG $MySSH $MySSHOPT "$@" "$MyRemotePath"
 		$FAKECMD $MySSH $MySSHOPT "$@" "$MyRemotePath"
 		;;
+	( "exec" )
+		CMDDBG $MySSH $MySSHOPT "$MyRemotePath" "$@"
+		$FAKECMD $MySSH $MySSHOPT "$MyRemotePath" "$@"
+		;;
 	( "read" )
 		declare -i NParams="$#"
 		declare -i nSources=$(($NParams - 1))

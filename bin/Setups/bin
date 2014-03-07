@@ -3,17 +3,23 @@
 
 function setup_bin_setup() {
 	local SourcedFile="$1"
-	local SetupDir="$(readlink -f "$(dirname "$SourcedFile")")"
+	local SetupDir="$(dirname "$SourcedFile")"
+	[[ "$SetupDir" == "." ]] && SetupDir="$(pwd)"
 	local BinDir="$(dirname "${SetupDir:-"${HOME}/bin/Setups"}")"
-	
+	if [[ "$BinDir" == '.' ]]; then
+		BinDir="$(pwd)"
+	elif [[ "${BinDir:0:2}" == "./" ]]; then
+		BinDir="${BinDir/./$(pwd)}"
+	elif [[ "${BinDir:0:1}" != '/' ]]; then
+		BinDir="$(pwd)/${BinDir}"
+	fi
+
 	echo "Local bin dir: '${BinDir}'"
 
-	local FunctionsScript="${BinDir}/bin/functions.sh"
+	local FunctionsScript="${BinDir}/common/functions.sh"
 	[[ -r "$FunctionsScript" ]] && source "$FunctionsScript"
 	
-	echo Check
 	AddToPath -d PATH "$BinDir"
-	echo Mark
 
 	local ExtraDirList="${BinDir}/ExtraBinDirs"
 	if [[ -r "$ExtraDirList" ]]; then
@@ -26,6 +32,8 @@ function setup_bin_setup() {
 			local ExtraDirSetup="${ExtraDir}/BinDirSetup"
 			[[ -r "$ExtraDirSetup" ]] && source "$ExtraDirSetup"
 		done < "$ExtraDirList"
+	else
+		echo "No extra dirs ('${ExtraDirList}')"
 	fi
 } # setup_bin_setup()
 

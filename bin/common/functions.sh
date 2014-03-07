@@ -369,7 +369,7 @@ function PurgeFromPath() {
 	done
 	
 	local VarName="${!OPTIND}"
-	eval "export ${VarName}=\"$(DeletePathSep "$@" )\""
+	eval "export ${VarName}=\"$(DeletePath "$@" )\""
 } # PurgeFromPath()
 
 
