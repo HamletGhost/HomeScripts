@@ -1,0 +1,5 @@
+# Setup UPS_CVMFS || return # failure goes with a too long timeout
+
+echo "Setting UPS (local repository) up"
+source "${HOME}/physics/LArSoft/software/products/setups"
+
