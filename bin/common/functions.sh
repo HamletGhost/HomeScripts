@@ -650,3 +650,133 @@ function isPositiveInteger() {
 	isNonNegativeInteger "$Number" && [[ "$Number" -gt 0 ]]
 } # isPositiveInteger()
 
+###############################################################################
+### alias-like functions
+###
+function md() {
+	local Param
+	local Dir=
+	local -i Parent=0 NoMoreOptions=0
+	for Param in "$@" ; do
+		if [[ "${Param:0:1}" == '-' ]] && isFlagUnset NoMoreOptions ; then
+			case "$Param" in
+				( '-h' | '--help' | '-?' )
+					cat <<-EOH
+					Creates the specified directory (if needed) and prints it.
+					
+					Usage:  md [options] DirName
+					
+					Options
+					--parent , -p , -p#
+					    creates only the parent directory of DirName, or the #-th parent only;
+					    the options can be repeated; -pp is equivalent to -p2, -ppp to -p3
+					    and so on. The directory written on screen is still DirName.
+					
+					EOH
+					return 0
+					;;
+				( '-p' | '--parent' )
+					let ++Parent
+					;;
+				( '-p'* )
+					if [[ "${Param//p}" == '-' ]]; then
+						Parent=$((${#Param} - 1))
+					else
+						let Parent+="${Param#-p}" >& /dev/null
+						if [[ $? != 0 ]]; then
+							ERROR "Invalid option -- '${Param}'"
+							return 1
+						fi
+					fi
+					;;
+				( '-' | '--' )
+					NoMoreOptions=1
+					;;
+				( -* )
+					ERROR "Invalid option -- '${Param}'"
+					return 1
+			esac
+		else
+			if [[ -n "$Dir" ]]; then
+				ERROR "too many directories specified: '${Dir}', and then '${Param}'."
+				return 1
+			fi
+			Dir="$Param"
+			NoMoreParams=1
+		fi
+	done
+	local CreateDir="$Dir"
+	while [[ $Parent -gt 0 ]]; do
+		CreateDir="$(dirname "$CreateDir")"
+		let --Parent
+	done
+	mkdir -p "$CreateDir"
+	echo "$Dir"
+	[[ -d "$CreateDir" ]]
+} # md()
+
+
+function chdir() {
+	local Dir="$1"
+	mkdir -p "$1"
+	cd "$1"
+} # chdir()
+
+
+function datetag() {
+	# parameters
+	
+	local FORMAT=
+	local SECONDFRACTION=0
+	
+	for Param in "$@" ; do
+		[[ -n "$FORMAT" ]] && break
+		case "$Param" in
+			( -s | --seconds )
+				FORMAT="%Y%m%d%H%M%S"
+				;;
+			( -m | --minutes )
+				FORMAT="%Y%m%d%H%M"
+				;;
+			( -c | --cents )
+				FORMAT="%Y%m%d%H%M%S"
+				SECONDFRACTION=2
+				;;
+			( -h | --help | -? )
+				cat <<-EOH
+				Prints a timestamp tag.
+				
+				Usage:  ${SCRIPTNAME} [options]
+				
+				By default, a format 'YYYYMMDD' is used.
+				Here, the YYYY is a four digits year, MM a two digits month, DD a two digits
+				day. Additional HHMM means hours and minutes, two digits each, additional SS is
+				two digits seconds and CC is two digits hundreths of second. 
+				
+				
+				Supported options:
+				
+				-c , --cents
+					format: YYYYMMDDHHMMSSCC
+				-s , --seconds
+					format: YYYYMMDDHHMMSS
+				-m , --minutes
+					format: YYYYMMDDHHMM
+				
+				EOH
+				return 0
+			( * )
+				ERROR "Format option '${Param}' not supported."
+				return 1
+		esac
+	done
+	
+	[[ -z "$FORMAT" ]] && FORMAT="%Y%m%d"
+	
+	local MAINDATE="$(date "+$FORMAT")"
+	[[ "$SECONDFRACTION" -gt 0 ]] && local NANOSECONDS="$(date '%n')"
+	
+	echo "${MAINDATE}${NANOSECONDS:0:${SECONDFRACTION}}"
+
+} # datetag()
+
