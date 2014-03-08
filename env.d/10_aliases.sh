@@ -4,4 +4,5 @@
 #
 
 alias xc='xclock -update 1'
+alias inject='eject -t'
 
