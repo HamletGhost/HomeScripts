@@ -2,9 +2,11 @@
 
 SCRIPTDIR="$(dirname "$0")"
 
+: ${GITCOMMAND:="pull"}
+
 # this very script should be in the repository:
 # use it to find where that is
-ScriptRealDir="$(readlink -f "SCRIPTDIR")"
+ScriptRealDir="$(readlink -f "$SCRIPTDIR")"
 AGitPackage="${ScriptRealDir}"
 while [[ "$AGitPackage" != '/' ]] && [[ "$AGitPackage" != '.' ]] ; do
 	[[ -d "${AGitPackage}/.git" ]] && break
@@ -24,7 +26,7 @@ for Dir in "${BaseGitRepos}/"* ; do
 
 	echo " - $(basename "$Dir"):"
 	pushd "$Dir" > /dev/null || continue
-	git pull || let ++nErrors
+	git ${GITCOMMAND} || let ++nErrors
 	popd > /dev/null
 done
 
