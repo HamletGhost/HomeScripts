@@ -1,3 +1,17 @@
 # set up the LArSoft general environment
 
-AddToPath PATH "${HOME}/physics/LArSoft/software/scripts"
+# it's hard to figure out where the scripts directory is
+# without any clue; I am hard-coding directories here
+for LARSCRIPTDIR in \
+  "${HOME}/physics/LArSoft/software/scripts" \
+  "${HOME}/LArSoft/software/scripts" \
+  '' 
+do
+	[[ -d "${LARSCRIPTDIR}/setup" ]] && break
+done
+if [[ -d "$LARSCRIPTDIR" ]]; then
+	export LARSCRIPTDIR
+	AddToPath PATH "$LARSCRIPTDIR"
+else
+	ERROR "LArSoft script directory not found."
+fi

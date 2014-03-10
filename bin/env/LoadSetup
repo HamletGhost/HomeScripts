@@ -2,10 +2,23 @@
 # shortcut to source setup scripts stored in
 # ${HOME}/bin/ExtraSetups, ${HOME}/bin/Setups or ${HOME}/bin/${KEY}/setup
 
-ROOT_SCRIPTS_DIR="$(dirname "${BASH_SOURCE:-${HOME}/bin/Setups}")"
-if [[ ! -d "$ROOT_SCRIPTS_DIR" ]]; then
-	echo "WARNING: script directory '${ROOT_SCRIPTS_DIR}' not found" >&2
+function LoadSetup_DetectROOTscriptDir() {
+	local Dir="$(dirname -- "${BASH_SOURCE:-${HOME}/bin/Setups}")"
+	[[ "${Dir:0:2}" == "./" ]] && Dir="$(pwd)/${Dir}"
+	while [[ ! -d "${Dir}/Setups" ]]; do
+		Dir="$(dirname "$Dir")"
+		[[ "$Dir" == "/" ]] && return 3
+	done
+	echo "$Dir"
+	return 0
+} # LoadSetup_DetectROOTscriptDir()
+
+
+ROOT_SCRIPTS_DIR="$(LoadSetup_DetectROOTscriptDir)"
+if [[ ! -d "${ROOT_SCRIPTS_DIR}/Setups" ]]; then
+	ERROR "${BASH_SOURCE}: Base script directory not found!"
 fi
+unset -f LoadSetup_DetectROOTscriptDir
 
 function Setup() {
 	local Package="$1"
