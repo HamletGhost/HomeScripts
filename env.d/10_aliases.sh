@@ -5,9 +5,9 @@
 
 alias v='ls -al'
 alias rl='readlink -f'
-alias du0='du -x --maxdepth=0'
-alias du1='du -x --maxdepth=1'
-alias du2='du -x --maxdepth=2'
+alias du0='du -x --max-depth=0'
+alias du1='du -x --max-depth=1'
+alias du2='du -x --max-depth=2'
 
 alias xc='xclock -update 1'
 alias inject='eject -t'
