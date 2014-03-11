@@ -4,7 +4,7 @@
 #
 
 alias v='ls -al'
-alias rl='readline -f'
+alias rl='readlink -f'
 alias du0='du -x --maxdepth=0'
 alias du1='du -x --maxdepth=1'
 alias du2='du -x --maxdepth=2'
