@@ -17,6 +17,7 @@ SCRIPTVERSION="1.0"
 : ${POLLDELAY:="60"}
 : ${COLUMNS:=80}
 : ${PSOPTS:="-o user,pid,ppid,stat,psr,pcpu,pmem,sz,rss,vsz,stime,etime,cputime,tt"}
+: ${DEFAULTMAPNAME:="memmap-%TIME%.txt"}
 
 function help() {
 	cat <<-EOH
@@ -33,10 +34,12 @@ function help() {
 	    the number of columnson the screen (autodetection seems to fail...)
 	--psopts= ['${PSOPTS}']
 	    the ps program options to be used
-	--memmap=MAPNAME
+	--memmap[=MAPNAME] [${DEFAULTMAPNAME}]
 	    if specified, on each print the memory map is also saved as a file named
 	    MAPNAME; a string %TIME% in the MAPNAME is replaced by the current date
 	    and time, up to the seconds
+	--logfile=LOGFILE
+	    prints the current line of this log file (can have a slight delay)
 	EOH
 } # help()
 
@@ -71,19 +74,31 @@ function PrintProcess() {
 	local res=1
 	local LogFile=''
 	local Line=""
-	for PID in "$@" ; do
+	local iParam
+	for (( iParam = 1 ; iParam <= $# ; ++iParam )); do
+		PID="${!iParam}"
 		[[ -z "$PID" ]] && break
-		[[ -n "${PID//[0-9]}" ]] && LogFile="$PID" && break
+		[[ -n "${PID//[0-9]}" ]] && break
 		[[ -n "$Line" ]] && echo "$Line"
 		Line="$(ps --no-header $PSOPTS "$PID")"
 		[[ $? == 0 ]] && res=0
 	done
-	if [[ -n "$LogFile" ]]; then
-		if [[ -r "$LogFile" ]]; then
-			Line+=" | log: $(wc -l < "$LogFile") lines"
-		else
-			Line+=" | (log not found)"
-		fi
+	if [[ $iParam -le $# ]]; then
+		local -i iLog
+		[[ $iParam == $# ]] || iLog=1
+		Line+=" |"
+		while [[ $iParam -le $# ]]; do
+			local LogLabel="log"
+			[[ "$iLog" == 0 ]] || LogLabel+=" #${iLog}"
+			LogFile="${!iParam}"
+			if [[ -r "$LogFile" ]]; then
+				Line+=" ${LogLabel}: $(wc -l < "$LogFile") lines;"
+			else
+				Line+=" (${LogLabel} not found);"
+			fi
+			let ++iParam
+			[[ iLog -gt 0 ]] && let ++iLog
+		done
 	fi
 	echo "$Line"
 	return $res
@@ -123,14 +138,19 @@ function GetPID() {
 } # GetPID()
 
 
+function Gzip() { gzip -c "$@" ; }	
+function Bzip() { bzip2 -c "$@" ; }
+function Copy() { cat "$@" ; }
+
+
 function SaveMemMaps() {
 	local PID="$1"
-	local MapFile="${2:-"memmaps-${PID}.txt"}"
+	local MapFile="${2:-"memmap-${PID}.txt"}"
 	
 	local DateTag="$(date '+%Y%m%d%H%M%S')"
 	MapFile="${MapFile//%TIME%/${DateTag}}"
 	[[ -r "/proc/${PID}/maps" ]] || return 2
-	cp -a "/proc/${PID}/maps" "$MapFile" && chmod u+w "$MapFile"
+	"$CopyMapProc" "/proc/${PID}/maps" > "$MapFile"
 } # SaveMemMaps()
 
 
@@ -138,6 +158,7 @@ function SaveMemMaps() {
 declare DoHelp=0 DoVersion=0 OnlyPrintEnvironment=0 NoLogDump=0
 
 declare HeaderEvery=25
+declare -a LogFiles
 
 declare -i NoMoreOptions=0
 declare -a Processes
@@ -154,8 +175,9 @@ for (( iParam = 1 ; iParam <= $# ; ++iParam )); do
 			( '--hdrevery='* ) HeaderEvery="${Param#--*=}" ;;
 			( '--cols='* )     COLUMNS="${Param#--*=}" ;;
 			( '--psopts='* )   PSOPTS="${Param#--*=}" ;;
+			( '--memmap' )     MEMMAP="$DEFAULTMAPNAME" ;;
 			( '--memmap='* )   MEMMAP="${Param#--*=}" ;;
-			( '--logfile='* )  LogFile="${Param#--*=}" ;;
+			( '--logfile='* )  LogFiles=( "${LogFiles[@]}" "${Param#--*=}" ) ;;
 			
 			### other stuff
 			( '-' | '--' )
@@ -200,17 +222,36 @@ if [[ -z "$PID" ]] || [[ ! -d "/proc/${PID}" ]]; then
 	exit 1
 fi
 
+case "$MEMMAP" in
+	( '.bz2' | '.gz2' ) MEMMAP="${DEFAULTMAPNAME}${MEMMAP}" ;;
+	( * ) ;;
+esac
+[[ -n "$MEMMAP" ]] && echo "Memory map file name(s): '${MEMMAP}'"
+case "$MEMMAP" in
+	( *.gz )  CopyMapProc=Gzip ;;
+	( *.bz2 ) CopyMapProc=Bzip ;;
+	( * )     CopyMapProc=Copy ;;
+esac
+
+
 # build the header line
 DateTag="$(GetDateTag)"
 HeaderLine="$(printf "%-${#DateTag}s" "Hit <Ctrl>+<C> to exit" | cut -c 1-${#DateTag} ) | $(ps $PSOPTS "$PID" | head -n 1)"
 unset DateTag
+
+if [[ "${#LogFiles[@]}" -gt 1 ]]; then
+	echo "Monitored logs (${#LogFiles[@]}):"
+	for (( iLog = 0 ; iLog < ${#LogFiles[@]} ; ++iLog )); do
+		echo " #$((iLog+1)) '${LogFiles[iLog]}'"
+	done
+fi
 
 for (( iPolls = 0 ;; ++iPolls )); do
 	[[ -d "/proc/${PID}" ]] || break
 	if [[ $HeaderEvery -gt 0 ]] && [[ $((iPolls % $HeaderEvery)) == 0 ]]; then
 		echo "$HeaderLine" | cut -c 1-${COLUMNS}
 	fi
-	echo "$(GetDateTag) | $(PrintProcess "$PID" "$LogFile" )" | cut -c 1-${COLUMNS}
+	echo "$(GetDateTag) | $(PrintProcess "$PID" "${LogFiles[@]}" )" | cut -c 1-${COLUMNS}
 	[[ -n "$MEMMAP" ]] && SaveMemMaps "$PID" "$MEMMAP"
 	sleep $POLLDELAY
 done
