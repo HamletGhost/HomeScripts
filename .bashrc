@@ -15,8 +15,5 @@ if [[ $- != *i* ]] ; then
 fi
 
 # Put your fun stuff here.
-for Script in "${HOME}/env.d/"*.sh ; do
-	[[ -x "$Script" ]] || continue
-	source "$Script"
-done
+[[ "${HOME}/bin/env/env.sh" ]] && source "${HOME}/bin/env/env.sh"
 
