@@ -110,7 +110,7 @@ def PrintMemoryMap(ProcessMemPath, options):
 	# for
 	
 	# ... and a summary
-	print "%s: %d bytes (%.2g MiB) in %d pages and %d groups" % (
+	print "%s: %d bytes (%.2f MiB) in %d pages and %d groups" % (
 	  ProcessMemPath, TotalMemory, TotalMemory/1048576., nPages, len(ItemsList)
 	  )
 	
