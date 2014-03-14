@@ -86,15 +86,15 @@ function PrintProcess() {
 	if [[ $iParam -le $# ]]; then
 		local -i iLog
 		[[ $iParam == $# ]] || iLog=1
-		Line+=" |"
+		Line+=" | logs:"
 		while [[ $iParam -le $# ]]; do
-			local LogLabel="log"
-			[[ "$iLog" == 0 ]] || LogLabel+=" #${iLog}"
+			local LogLabel=""
+			[[ "$iLog" == 0 ]] || LogLabel+="[${iLog}]"
 			LogFile="${!iParam}"
 			if [[ -r "$LogFile" ]]; then
-				Line+=" ${LogLabel}: $(wc -l < "$LogFile") lines;"
+				Line+=" ${LogLabel} $(wc -l < "$LogFile")"
 			else
-				Line+=" (${LogLabel} not found);"
+				Line+="(${LogLabel} not found);"
 			fi
 			let ++iParam
 			[[ iLog -gt 0 ]] && let ++iLog
@@ -242,7 +242,7 @@ unset DateTag
 if [[ "${#LogFiles[@]}" -gt 1 ]]; then
 	echo "Monitored logs (${#LogFiles[@]}):"
 	for (( iLog = 0 ; iLog < ${#LogFiles[@]} ; ++iLog )); do
-		echo " #$((iLog+1)) '${LogFiles[iLog]}'"
+		echo " [$((iLog+1))] '${LogFiles[iLog]}'"
 	done
 fi
 
