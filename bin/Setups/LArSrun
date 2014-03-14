@@ -1,0 +1,37 @@
+#
+# Goes to the "usual" LArSoft run-time directory and does the required setup
+#
+
+declare setup_LArS_quality="${1:-profiling}"
+
+Setup LArSoft
+
+declare setup_LArS_experiment="$(autodetectLArSoft.sh --experiment)"
+
+# find the base LArSoft directory 
+for MRB_TOP in \
+  "${HOME}/physics/LArSoft/data/LArSoft/current/${setup_LArS_quality}" \
+  "${HOME}/physics/LArSoft/data/production/current/${setup_LArS_quality}" \
+  "${HOME}/${setup_LArS_experiment}/data/LArSoft/current/${setup_LArS_quality}" \
+  ""
+do
+	[[ -d "$MRB_TOP" ]] && break
+done
+
+# go there, if there is a where
+if [[ -d "$MRB_TOP" ]]; then
+	cd "$MRB_TOP"
+else
+	ERROR "Could not figure out where the working directory is!"
+fi
+
+# set up if there is a setup
+# (even if we could not find where: maybe we are already there!)
+if [[ -r "./setup" ]]; then
+	source "./setup"
+else
+	ERROR "I don't see any setup script here."
+fi
+
+# clean out and go
+unset setup_LArS_quality setup_LArS_experiment

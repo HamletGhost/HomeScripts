@@ -36,7 +36,8 @@ function Setup() {
 		local SetupDir="$(dirname "$TargetSetupScript")"
 		local SetupScriptName="$(basename "$TargetSetupScript")"
 		[[ $Quiet -le 0 ]] && echo "${Indent}Setup (${SetupScriptName}) from '${SetupDir}'"
-		pushd "$SetupDir" > /dev/null
+		local CWD="$(pwd)"
+		cd "$SetupDir"
 		shift
 		local ReturnCode
 		if [[ $Quiet -le 1 ]]; then
@@ -45,7 +46,7 @@ function Setup() {
 			source "./${SetupScriptName}" "$@" > /dev/null
 		fi
 		ReturnCode=$?
-		popd > /dev/null
+		[[ "$(pwd)" == "$SetupDir" ]] && cd "$CWD"
 		return $ReturnCode
 	done
 	# fallback on an existing setup (e.g. UPS)
