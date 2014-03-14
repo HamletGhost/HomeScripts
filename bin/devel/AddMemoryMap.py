@@ -6,13 +6,19 @@
 # Version:
 # 1.0 (petrillo@fnal.gov)
 #   first version
+# 1.1 (petrillo@fnal.gov)
+#   support for compressed input files;
+#   swapped total and partial memory columns
 #
 
 import sys, os
+import gzip
+try: import bz2
+except ImportError: pass
 
 import optparse
 
-Version = "%prog 1.0"
+Version = "%prog 1.1"
 UsageMsg = """%prog  [options] ProcID [ProcID ...]
 
 ProcID can be either a running process ID (in which case a memory map
@@ -61,9 +67,16 @@ class MapDataListClass:
 # class MapDataClass
 
 
+def OPEN(Path, mode = 'r'):
+	if Path.endswith('.bz2'): return bz2.BZ2File(Path, mode)
+	if Path.endswith('.gz'): return gzip.GzipFile(Path, mode)
+	return open(Path, mode)
+# OPEN()
+
+
 def PrintMemoryMap(ProcessMemPath, options):
 	
-	MapFile = open(ProcessMemPath, 'r')
+	MapFile = OPEN(ProcessMemPath)
 	
 	nPages = 0
 	TotalMemory = 0
@@ -105,7 +118,7 @@ def PrintMemoryMap(ProcessMemPath, options):
 	for sortKey, dataList in ItemsList:
 		ProgressiveTotal += dataList.size()
 		print " %8d KiB %8d KiB | %s" % (
-		  dataList.size() / 1024, ProgressiveTotal/1024, dataList.path
+		  ProgressiveTotal/1024, dataList.size() / 1024, dataList.path
 		  )
 	# for
 	
