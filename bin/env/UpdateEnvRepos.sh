@@ -2,7 +2,37 @@
 
 SCRIPTDIR="$(dirname "$0")"
 
-: ${GITCOMMAND:="pull"}
+: ${MODE:='pull'}
+
+declare -i nParams=0
+declare -a Params
+declare -i NoMoreOptions=0
+declare Mode="pull"
+for (( iParam = 1 ; iParam <= $# ; ++iParam )); do
+	Param="${!iParam}"
+	if [[ "${Param:0:1}" == '-' ]] && [[ -z "${NoMoreOptions//0}" ]]; then
+		case "$Param" in
+			( '--push' | '--pull' ) MODE="${Param#--}" ;;
+			( '-' | '--' ) NoMoreOptions=1 ;;
+			( * )
+				Params[nParams++]="$Param"
+				;;
+		esac
+	else
+		Params[nParams++]="$Param"
+	fi
+done
+
+
+case "$MODE" in
+	( 'push' ) GITCOMMAND='push' ;;
+	( 'pull' ) GITCOMMAND='pull' ;;
+	( * )
+		echo "Invalid mode - '${MODE}'"
+		exit 1
+		;;
+esac
+
 
 # this very script should be in the repository:
 # use it to find where that is
