@@ -15,22 +15,28 @@ SCRIPTNAME="$(basename "$0")"
 SCRIPTVERSION="1.0"
 
 : ${POLLDELAY:="60"}
-: ${COLUMNS:=80}
 : ${PSOPTS:="-o user,pid,ppid,stat,psr,pcpu,pmem,sz,rss,vsz,stime,etime,cputime,tt"}
 : ${DEFAULTMAPNAME:="memmap-%TIME%.txt"}
+
+: ${Width="$COLUMNS"}
+if [[ -z "$Width" ]]; then
+	eval $(resize)
+	Width="$COLUMNS"
+fi
+
 
 function help() {
 	cat <<-EOH
 	Continuously prints information about a process.
 	
-	Usage:  ${SCRIPTNAME}  PID
+	Usage:  ${SCRIPTNAME}  [PID|ProgramName]
 	
 	Options:
 	--every=SECONDS ['${POLLDELAY}']
 	    print statistics every SECONDS
 	--hdrevery=LINES ['${HeaderEvery}']
 	    print a header every LINES lines (0 disables the header completely)
-	--cols=COLUMNS ['${COLUMNS}']
+	--cols=COLUMNS ['${Width}']
 	    the number of columnson the screen (autodetection seems to fail...)
 	--psopts= ['${PSOPTS}']
 	    the ps program options to be used
@@ -112,7 +118,7 @@ function GetDateTag() {
 function GetPID() {
 	local ProgName="$1"
 	
-	if [[ -d "/proc/${ProgName}/fd" ]]; then
+	if [[ -d "/proc/${ProgName}" ]]; then
 		echo "$ProgName"
 		return 0
 	fi
@@ -125,11 +131,13 @@ function GetPID() {
 		echo "$ProgName"
 		return 1
 	elif [[ $nPIDs -gt 1 ]]; then
-		echo "${nPIDs} processes match '${ProgName}':"
-		for PID in "${PIDs[@]}" ; do
-			PrintProcess "$PID"
-		done
-		echo "Monitoring: '${PID}'"
+		{
+			echo "${nPIDs} processes match '${ProgName}':"
+			for PID in "${PIDs[@]}" ; do
+				PrintProcess "$PID"
+			done
+			echo "Monitoring: '${PID}'"
+		} >&2
 	else
 		PID="${PIDs[0]// }"
 	fi
@@ -173,7 +181,7 @@ for (( iParam = 1 ; iParam <= $# ; ++iParam )); do
 			### behaviour options
 			( '--every='* )    POLLDELAY="${Param#--*=}" ;;
 			( '--hdrevery='* ) HeaderEvery="${Param#--*=}" ;;
-			( '--cols='* )     COLUMNS="${Param#--*=}" ;;
+			( '--cols='* )     Width="${Param#--*=}" ;;
 			( '--psopts='* )   PSOPTS="${Param#--*=}" ;;
 			( '--memmap' )     MEMMAP="$DEFAULTMAPNAME" ;;
 			( '--memmap='* )   MEMMAP="${Param#--*=}" ;;
@@ -249,9 +257,9 @@ fi
 for (( iPolls = 0 ;; ++iPolls )); do
 	[[ -d "/proc/${PID}" ]] || break
 	if [[ $HeaderEvery -gt 0 ]] && [[ $((iPolls % $HeaderEvery)) == 0 ]]; then
-		echo "$HeaderLine" | cut -c 1-${COLUMNS}
+		echo "$HeaderLine" | cut -c 1-${Width}
 	fi
-	echo "$(GetDateTag) | $(PrintProcess "$PID" "${LogFiles[@]}" )" | cut -c 1-${COLUMNS}
+	echo "$(GetDateTag) | $(PrintProcess "$PID" "${LogFiles[@]}" )" | cut -c 1-${Width}
 	[[ -n "$MEMMAP" ]] && SaveMemMaps "$PID" "$MEMMAP"
 	sleep $POLLDELAY
 done
