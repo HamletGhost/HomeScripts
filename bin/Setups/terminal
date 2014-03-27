@@ -1,0 +1,2 @@
+# resets the LINES and COLUMNS variables of the terminal
+eval $(resize)
