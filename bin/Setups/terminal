@@ -1,2 +1,4 @@
 # resets the LINES and COLUMNS variables of the terminal
-eval $(resize)
+if [[ -z "$LINES" ]] || [[ -z "$COLUMNS" ]]; then
+	eval $(resize)
+fi

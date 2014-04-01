@@ -12,7 +12,7 @@ for (( iParam = 1 ; iParam <= $# ; ++iParam )); do
 	Param="${!iParam}"
 	if [[ "${Param:0:1}" == '-' ]] && [[ -z "${NoMoreOptions//0}" ]]; then
 		case "$Param" in
-			( '--push' | '--pull' ) MODE="${Param#--}" ;;
+			( '--push' | '--pull' | '--status' ) MODE="${Param#--}" ;;
 			( '-' | '--' ) NoMoreOptions=1 ;;
 			( * )
 				Params[nParams++]="$Param"
@@ -27,6 +27,7 @@ done
 case "$MODE" in
 	( 'push' ) GITCOMMAND='push' ;;
 	( 'pull' ) GITCOMMAND='pull' ;;
+	( 'status' ) GITCOMMAND='status' ;;
 	( * )
 		echo "Invalid mode - '${MODE}'"
 		exit 1

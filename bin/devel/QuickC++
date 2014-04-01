@@ -1,0 +1,35 @@
+#!/bin/bash
+#
+# Creates an executable from the first of the specified files.
+#
+
+function RemoveSourceSuffix {
+	local Name="$1"
+	local OldName=""
+	while [[ "$Name" != "$OldName" ]]; do
+		OldName="$Name"
+		for Suffix in '.c' '.C' '.cpp' '.cxx' '.h' '.H' '.hpp' '.hxx' ; do
+			Name="${Name%${Suffix}}"
+		done
+	done
+	echo "$Name"
+} # RemoveSourceSuffix()
+
+
+MainFile="$1"
+if [[ ! -r "$MainFile" ]]; then
+	echo "You have to specify an existing C++ source file." >&2
+	exit 2
+fi
+
+ExecFile="$(RemoveSourceSuffix "$MainFile").exe"
+
+CPPFLAGS="-Wall -pedantic --std=c++11 ${CPPFLAGS}"
+
+g++ $CPPFLAGS -o "$ExecFile" "$@"
+res=$?
+if [[ $res != 0 ]]; then
+	echo "Executable file created: '${ExecFile}'"
+fi
+exit $res
+
