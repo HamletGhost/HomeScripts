@@ -10,6 +10,7 @@ if [[ -d "$EnvDir" ]]; then
 	for EnvFile in ${EnvDir}/*.sh ; do
 		# skip non-executable and backup files:
 		if [[ ! -x "$EnvFile" ]] || [[ "${EnvFile: -1}" == '~' ]]; then
+		#	echo "'${EnvFile}' skipped"
 			continue
 		fi
 	#	echo "Configuration: $(basename "$EnvFile")"
