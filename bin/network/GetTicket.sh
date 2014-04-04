@@ -5,10 +5,10 @@ SCRIPTDIR="$(dirname "$0")"
 
 # if an instance is specified (r.g. user/root@REALM),,
 # the DB file of Kerberos5 tickets is kept in a special file in KRB5BASECCDIR,
-# which by default is in the user's home directory.
+# which by default is in the unser's home directory.
 # If the following is set to true, that will happen even if no instance is specified;
 # otherwise the default location is used, which is chosen by Kerberos
-# and it's usually in the system temporary directory.
+# and it's usuallt in the system temporary directory.
 # In case a special location is used, it should be set up in .bashrc .
 USEDEFAULTIFNOINSTANCE=1
 
@@ -122,9 +122,7 @@ if [[ -z "$KRB5FULLUSER" ]]; then
 	fi
 fi
 if [[ -z "$KRB5INSTANCE" ]] && isFlagSet USEDEFAULTIFNOINSTANCE ; then
-	# perform the unset only if we look like having done the set first
-	# (i.e. don't undo standard kerberos stuff if already there)
-	if [[ "${KRB5CCNAME#"${KRB5BASECCDIR}/${KRB5USER}/"}" != "$KRB5CCNAME" ]]; then
+	if [[ -n "$KRB5CCNAME" ]]; then
 		unset KRB5CCNAME
 		echo "unset KRB5CCNAME"
 	fi
