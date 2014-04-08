@@ -1,4 +1,5 @@
-# resets the LINES and COLUMNS variables of the terminal
-if [[ -z "$LINES" ]] || [[ -z "$COLUMNS" ]]; then
+# resets the LINES and COLUMNS variables of the terminal,
+# only if not a login shell
+if [[ -z "$LINES" ]] || [[ -z "$COLUMNS" ]] && ! shopt -q login_shell ; then
 	eval $(resize)
 fi
