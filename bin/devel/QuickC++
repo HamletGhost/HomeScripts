@@ -28,7 +28,7 @@ CPPFLAGS="-Wall -pedantic --std=c++11 ${CPPFLAGS}"
 
 g++ $CPPFLAGS $CXXFLAGS $OPTFLAGS -o "$ExecFile" "$@"
 res=$?
-if [[ $res != 0 ]]; then
+if [[ $res == 0 ]]; then
 	echo "Executable file created: '${ExecFile}'"
 fi
 exit $res
