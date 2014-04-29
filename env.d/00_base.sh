@@ -3,7 +3,7 @@
 # Sourced by user's .bashrc
 #
 
-if [[ -z "$FUNCTIONS_SH_LOADED" ]] && [[ -r "${HOME}/bin/common/functions.sh" ]]; then
+if [[ -r "${HOME}/bin/common/functions.sh" ]]; then
 	source "${HOME}/bin/common/functions.sh"
 fi
 
