@@ -1,0 +1,487 @@
+#!/bin/bash
+#
+# Prints the path to the specified destination.
+# Source this script to define a 'goto' function automatically going where asked
+# and a 'jumpto' function which also sets a way back with `popd`.
+# It also sets completion.
+#
+
+if [[ "$(basename -- "$0")" == "DirMap" ]]; then
+	Version="1.1"
+	ScriptName="$(basename "$0")"
+	
+	: ${DirMapHelpMessage:="Prints the directory corresponding to the specified key."}
+	
+	function help() {
+		cat <<-EOH
+		${DirMapHelpMessage}
+		
+		Usage:  ${ScriptName}  [options] DirKey
+		
+		Options are read from all files in list of directories, in this order:
+		../params/dirmap.d , ./dirmap.d, ./params/dirmap.d, ../dirmap.d and
+		the content of DIRMAP_MAPS variable (currently: '${DIRMAP_MAPS}'), where
+		"." is the directory where the DirMap script resides and the input from
+		the later directories overrides the previous.
+		
+		Options:
+		--list , -l
+		    prints all the possible keys
+		--show , -s
+		    shows all the paths and their keys
+		--version , -V
+		    print the version
+		--help , -h , -?
+		    print this help message
+		
+		EOH
+	} # help()
+	
+	function isFlagSet() { local VarName="$1" ; [[ -n "${!VarName//0}" ]] ; }
+	function STDERR() { echo "$*" >&2 ; }
+	function ERROR() { STDERR "ERROR: $*" ; }
+	function FATAL() {
+		local Code=$?
+		shift
+		STDERR "FATAL ERROR(${Code}): $*"
+		exit $Code
+	} # FATAL
+	
+	
+	
+	declare DEBUG=0 DoHelp=0 DoVersion=0 DoShowKeysMap=0 DoPrintKeysList=0
+	declare DirKey
+	declare NoMoreOptions=0
+	for ((iParam = 1; iParam <= $# ; ++iParam)); do
+		Param="${!iParam}"
+		if [[ "${Param:0:1}" != '-' ]] || isFlagSet NoMoreOptions ; then
+			[[ -n "$DirKey" ]] && FATAL 1 "Directory key specified twice ('${DirKey}' first, then '${Param})"
+			DirKey="$Param"
+		else
+			case "$Param" in
+				( '--list' | '-l' )
+					DoPrintKeysList=1
+					;;
+				( '--show' | '-a' )
+					DoShowKeysMap=1
+					;;
+				( '--dirmap='* )
+					DirMap="${Param#--dirmap=}"
+					;;
+				( '--host='* )
+					Host="${Param#--*=}"
+					;;
+				( '--help' | '-h' | '-?' )
+					DoHelp=1
+					;;
+				( '--version' | '-V' )
+					DoVersion=1
+					;;
+				( '--debug' | '-d' )
+					DEBUG=1
+					;;
+			esac
+		fi
+	done
+	
+	: ${DirMap="$0"}
+	: ${Host:="${HOSTNAME:-$(hostname)}"}
+	
+	if isFlagSet DoVersion ; then
+		echo "${ScriptName} ${Version}"
+		exit 0
+	fi
+	
+	if isFlagSet DoHelp ; then
+		help
+		exit 0
+	fi
+	
+	
+	#############################################################################
+	
+	function isDebugging() {
+		local Level="${1:-1}"
+		[[ -n "$DEBUG" ]] && [[ "$DEBUG" -ge "$Level" ]]
+	} # isDebugging()
+	
+	function DBG() { isDebugging && STDERR "DBG| $*" ; }
+	
+	function Map() { "$DirMap" "$@" ; }
+	
+	#############################################################################
+	###  Custom functions here
+	function GetHome() {
+		if [[ -n "${SHORTHOME//0}" ]]; then
+			echo "~"
+		else
+			echo "$HOME"
+		fi
+	} # GetHome()
+	#############################################################################
+	
+	function GetFirstAliasIndex() {
+		local PathSpecVarName="$1"
+		
+		local PathType="${!PathSpecVarName[0]}"
+		local NParams=0
+		
+		# first determine how many parameters we have, so that we can find where the aliases are
+		case "$PathType" in
+			( '@path@' ) NParams=2 ;;
+			( '@based@' ) NParams=3 ;;
+			( '@alias@' ) NParams=2 ;;
+			( '@func@' ) NParams=2 ;; # equivalent to '@func0@'
+			( '@func'*'@' ) NParams="${PathType#@func}" ; NParams="$(( ${NParams%@} + 2))" ;;
+			( * )
+				echo "Internal error: path type '${PathType}' in specification '${PathSpecVarName}' not supported" >&2
+				return 2
+		esac
+		echo "$NParams"
+		return 0
+	} # GetFirstAliasIndex()
+	
+	function GetNArgs() {
+		# assumes a function
+		local NParams="$(GetFirstAliasIndex "$1")"
+		local ExitCode=$?
+		[[ $ExitCode != 0 ]] && exit $ExitCode
+		echo "$((NParams - 1))"
+	} # GetNArgs()
+	
+	function GetPathType() {
+		local PathSpecVarName="$1"
+		local PathType="${!PathSpecVarName[0]}"
+		local NParams=0
+		
+		case "$PathType" in
+			( '@path@' ) echo "Path" ;;
+			( '@based@' ) echo "Relative path" ;;
+			( '@alias@' ) eval "GetPathType \"\${${PathSpecVarName}[1]}\"" ;;
+			( '@func@' ) echo "Function" ;;
+			( '@func'*'@' ) echo "Function with $(GetNArgs ) arguments" ;;
+			( * )
+				echo "Unsupported ('${PathType}')"
+				return 1
+		esac
+		return 0
+	} # GetPathType()
+	
+	function GetPathAliases() {
+		local PathSpecVarName="$1"
+		
+		local iFirstAlias=$(GetFirstAliasIndex "$PathSpecVarName")
+		local ExitCode=$?
+		[[ $ExitCode != 0 ]] && return $ExitCode
+		
+		local -a Items
+		eval "Items=( \"\${${PathSpecVarName}[@]}\" )"
+		# check if the any of the aliases matches
+		local iAlias=$iFirstAlias
+		for (( iAlias=$iFirstAlias ; iAlias < ${#Items[@]} ; ++iAlias )); do
+			echo "${Items[iAlias]}"
+		done
+		return 0
+	} # GetPathAliases()
+	
+	function BuildPath() {
+		local PathSpecVarName="$1"
+		
+		local PathType="${!PathSpecVarName[0]}"
+		case "$PathType" in
+			( '@path@' ) ### a simple path ########################################
+				local Path
+				eval "Path=\"\${${PathSpecVarName}[1]}\""
+				echo "$Path"
+				;;
+			
+			( '@alias@' ) ### an explicit alias to another path ###################
+				local BaseKey
+				eval "BaseKey=\"\${${PathSpecVarName}[1]}\""
+				ParsePaths "$BaseKey"
+				ExitCode=$?
+				;;
+			
+			( '@based@' ) ### a path on top of another known path #################
+				local BaseKey AppendPath
+				eval "BaseKey=\"\${${PathSpecVarName}[1]}\""
+				eval "AppendPath=\"\${${PathSpecVarName}[2]}\""
+				
+				DBG "Base: '${BaseKey}' + '${AppendPath}'"
+				local BasePath="$(ParsePaths "$BaseKey")"
+				if [[ $? != 0 ]]; then
+					echo "Internal error: base path '${BaseKey}' in specification '${PathSpecVarName}' not known" >&2
+					BasePath=''
+				fi
+				echo -n "$BasePath"
+				[[ -n "$BasePath" ]] && [[ -n "$AppendPath" ]] && echo -n '/'
+				echo "$AppendPath"
+				;;
+			( '@func'*'@' ) ### a function call with * parameters #################
+				local FunctionName
+				local -a FunctionArgs
+				eval "FunctionName=\"\${${PathSpecVarName}[1]}\""
+				local iArg iFirstAlias=$(GetFirstAliasIndex "$PathSpecVarName")
+				for (( iArg = 2 ; iArg < iFirstAlias ; ++iArg )); do
+					eval "FunctionArgs=( \"\${FunctionArgs[@]}\" \"\${${PathSpecVarName}[$iArg]}\""
+				done
+				DBG "Function with $((iFirstAlias-1)) parameters: ${FunctionName}(${FunctionArgs[@]})"
+				"$FunctionName" "${FunctionArgs[@]}"
+				ExitCode=$?
+				;;
+		esac
+		
+		return $ExitCode
+	} # BuildPath()
+	
+	
+	function ParsePath() {
+		local Keyword="$(tr '[:upper:]' '[:lower:]' <<< "$1")"
+		local PathSpecVarName="$2"
+		
+		# first determine how many parameters we have, so that we can find where the aliases are
+		local iFirstAlias
+		iFirstAlias=$(GetFirstAliasIndex "$PathSpecVarName")
+		local ExitCode=$?
+		[[ $ExitCode != 0 ]] && return $ExitCode
+		
+		# check if the any of the aliases matches
+		local iAlias=0
+		for Alias in $(GetPathAliases "$PathSpecVarName") ; do
+			let ++iAlias
+			Alias="$(tr '[:upper:]' '[:lower:]' <<< "$Alias" )"
+			
+			DBG "Compare alias '${Alias}' with '${Keyword}'"
+			[[ "$Alias" == "$Keyword" ]] && break
+		done
+	#	if [[ $iAlias == 0 ]]; then
+	#		echo "Internal error: specification '${PathSpecVarName}' has $((iFirstAlias - 1)) parameters and no aliases" >&2
+	#		return 2
+	#	fi
+		[[ "$Alias" == "$Keyword" ]] || return 1 # no match, goodbye
+		
+		BuildPath "$PathSpecVarName"
+		return $? # redundant...
+	} # ParsePath()
+	
+	function PresentPath() {
+		local PathVarName="$1"
+		
+		local -a Aliases
+		Aliases=( $(GetPathAliases "$PathVarName") )
+		
+		[[ ${#Aliases[@]} -gt 0 ]] || return 1
+		
+		echo -n "${Aliases[0]}  => '$(BuildPath "$PathVarName")'"
+		if [[ ${#Aliases[@]} -gt 1 ]]; then
+			echo -n " (also: ${Aliases[1]}"
+			local -i iAlias
+			for (( iAlias = 2 ; iAlias < ${#Aliases[@]} ; ++iAlias )); do
+				echo -n ", ${Aliases[iAlias]}"
+			done
+			echo -n ")"
+		fi
+		echo
+		return 0
+	} # PresentPath()
+	
+	
+	function ParsePaths() {
+		local Keyword="$(tr '[:upper:]' '[:lower:]' <<< "$1")"
+		DBG "Keyword: '${Keyword}'"
+		local PathVarName
+		for PathVarName in "${!PathSpec_@}" ; do
+			DBG "Trying: '${PathVarName}'"
+			ParsePath "$Keyword" "$PathVarName" && return 0
+		done
+		return 1 # no match
+	} # ParsePaths()
+	
+	function PresentPaths() {
+		local PathVarName
+		for PathVarName in "${!PathSpec_@}" ; do
+			PresentPath "$PathVarName"
+		done
+	} # PresentPaths()
+	
+	function PrintAllAliases() {
+		local PathVarName
+		for PathVarName in "${!PathSpec_@}" ; do
+			GetPathAliases "$PathVarName" || return 1
+		done
+		return 0
+	} # PrintAllAliases()
+	
+	
+	function ReloadDirMaps() {
+		# TODO needs some decent error handling...
+		
+		function GetKeyIndex() {
+			# NOTE copied from GetFirstAliasIndex above... not that safe
+			local PathType="$1"
+			local NParams=0
+			
+			case "$PathType" in
+				( '@path@' ) NParams=2 ;;
+				( '@based@' ) NParams=3 ;;
+				( '@alias@' ) NParams=2 ;;
+				( '@func@' ) NParams=2 ;; # equivalent to '@func0@'
+				( '@func'*'@' ) NParams="${PathType#@func}" ; NParams="$(( ${NParams%@} + 2))" ;;
+				( * )
+					echo "Internal error: path type '${PathType}' in specification '${PathSpecVarName}' not supported" >&2
+					return 2
+			esac
+			echo "$NParams"
+			return 0
+		} # GetKeyIndex()
+		
+		function RegisterDirMapEntry() {
+			local -a Parameters=( "$@" )
+			
+			local -i KeyIndex
+			KeyIndex="$(GetKeyIndex "${Parameters[0]}")"
+			[[ $? != 0 ]] && return 1
+			
+			local Key="${Parameters[$KeyIndex]}"
+			local VarName="PathSpec_${Key}"
+			eval "${VarName}=( \"\${Parameters[@]}\" ) ; export \"$VarName\""
+		} # RegisterDirMapEntry()
+		
+		function LoadDefaultEntries() {
+			RegisterDirMapEntry '@func@' 'GetHome' 'home'
+		} # LoadDefaultEntries()
+		
+		function LoadMapFromExecutable() {
+			local SourceFile="$1"
+			source "$SourceFile"
+		} # LoadMapFromExecutable()
+		
+		function LoadMapFromDataFile() {
+			local SourceFile="$1"
+			local PathType
+			while read -a Items ; do
+				PathType="${Items[0]}"
+				[[ -n "$PathType" ]] || continue
+				[[ "${PathType:0:1}" == '#' ]] && continue
+				RegisterDirMapEntry "${Items[@]}"
+			done < "$SourceFile"
+			
+		} # LoadMapFromDataFile()
+		
+		function LoadMapFromDirectory() {
+			local SourceDir="${1:-"."}"
+			local SourceFile
+			
+			for SourceFile in "${SourceDir}/"* ; do
+				[[ -e "$SourceFile" ]] || continue
+				if [[ -d "$SourceFile" ]]; then
+					LoadMapFromDirectory "$SourceFile"
+				elif [[ -x "$SourceFile" ]]; then
+					LoadMapFromExecutable "$SourceFile"
+				else
+					LoadMapFromDataFile "$SourceFile"
+				fi
+			done # SourceFile
+		} # LoadMapFromDirectory()
+		
+		LoadDefaultEntries
+		
+		local BaseDir="$(dirname "$BASH_SOURCE")"
+		local ParentBaseDir="$(dirname "$BaseDir")"
+		local -a SourceDirs=(
+			"${BaseDir}/params/dirmap.d"
+			"${BaseDir}/dirmap.d"
+			"${ParentBaseDir}/params/dirmap.d"
+			"${ParentBaseDir}/dirmap.d"
+			"$DIRMAP_MAPS"
+			"$@"
+		)
+		
+		local SourceDir SourceFile
+		for SourceDir in "${SourceDirs[@]}" ; do
+			[[ -n "$SourceDir" ]] || continue
+			LoadMapFromDirectory "$SourceDir"
+		done # SourceDir
+		
+		unset -f LoadMapFromExecutable LoadMapFromDataFile
+		
+	} # ReloadDirMaps()
+	
+	declare Keyword="${1%%/*}"
+	
+	if isFlagSet DoPrintKeysList ; then
+		ReloadDirMaps
+		PrintAllAliases
+		exit $?
+	fi
+	
+	if isFlagSet DoShowKeysMap ; then
+		ReloadDirMaps
+		PresentPaths
+		exit $?
+	fi
+	
+	if [[ -z "$DirKey" ]]; then
+		help
+		FATAL 1 "Need to specify a directory key."
+	fi
+	
+	declare ExtraPath
+	[[ "$Keyword" == "$1" ]] || ExtraPath="/${1#*/}"
+	
+	ReloadDirMaps
+	declare Path
+	Path="$(ParsePaths "$Keyword")"
+	ExitCode=$?
+	if [[ $ExitCode != 0 ]]; then
+		echo "Path to '${Keyword}' not known." >&2
+		exit 1
+	fi
+	
+	echo "${Path}${ExtraPath}"
+	
+else
+	function goto() {
+		local DestDir="$(DirMap "$@")"
+		if [[ -d "$DestDir" ]]; then
+			cd "$DestDir"
+		elif [[ -n "$DestDir" ]]; then
+			echo "Directory '${DestDir}' does not exist." >&2
+		fi
+	}
+
+	function jumpto() {
+		local DestDir="$(DirMap "$@")"
+		if [[ -d "$DestDir" ]]; then
+			pushd "$DestDir" > /dev/null
+		elif [[ -n "$DestDir" ]]; then
+			echo "Directory '${DestDir}' does not exist." >&2
+		fi
+	}
+	
+	
+	function _BashCompletion_DirMap() {
+		# auto-completion of the thing being set up;
+		# choice among the candidates in the blessed directories
+		
+		# Pointer to current completion word.
+		# By convention, it's named "cur" but this isn't strictly necessary.
+		local Cur="${COMP_WORDS[COMP_CWORD]}"
+		local cur="$(tr '[:upper:]' '[:lower:]' <<< "$Cur")"
+		
+		COMPREPLY=()   # Array variable storing the possible completions.
+		
+		local DirKey
+		for DirKey in $(DirMap --list) ; do
+			local dirkey="$(tr '[:upper:]' '[:lower:]' <<< "$DirKey")"
+			[[ "${dirkey#${cur}}" == "$dirkey" ]] && continue
+			COMPREPLY=( "${COMPREPLY[@]}" "$DirKey" )
+		done
+		
+		return 0
+	} # _BashCompletion_DirMap()
+	
+	complete -F _BashCompletion_DirMap DirMap goto jumpto
+	
+fi
+
