@@ -58,3 +58,36 @@ function Setup() {
 	fi
 } # Setup()
 
+
+function _BashCompletion_Setup() {
+	# auto-completion of the thing being set up;
+	# choice among the candidates in the blessed directories
+	
+	# Pointer to current completion word.
+	# By convention, it's named "cur" but this isn't strictly necessary.
+	local cur="${COMP_WORDS[COMP_CWORD]}"
+	
+	COMPREPLY=()   # Array variable storing the possible completions.
+	
+	local SetupScript
+	for SetupScript in \
+	  "${ROOT_SCRIPTS_DIR}/ExtraSetups/"* \
+	  "${ROOT_SCRIPTS_DIR}/Setups/"* \
+	  "${ROOT_SCRIPTS_DIR}/"*
+	do
+		local Candidate
+		if [[ -f "$SetupScript" ]]; then
+			Candidate="$(basename "$SetupScript")"
+		elif [[ -f "${SetupScript}/setup" ]]; then
+			Candidate="$(basename "$(dirname "$SetupScript")")"
+		else
+			continue
+		fi
+		[[ "${Candidate#${cur}}" == "$Candidate" ]] && continue
+		COMPREPLY=( "${COMPREPLY[@]}" "$Candidate" )
+	done
+	
+	return 0
+} # _BashCompletion_Setup()
+
+complete -F _BashCompletion_Setup Setup

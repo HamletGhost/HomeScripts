@@ -1,0 +1,59 @@
+#!/bin/sh
+#
+
+SCRIPTDIR="$(dirname "$0")"
+
+BaseName="$1"
+BaseName="${BaseName%.cpp}"
+BaseName="${BaseName%.cxx}"
+BaseName="${BaseName%.C}"
+BaseName="${BaseName%.c}"
+
+: ${OBJNAME="${BaseName}.o"}
+: ${EXECNAME="${BaseName}.exe"}
+: ${SOEXECNAME="${BaseName}.so"}
+
+: ${rootconfig:="root-config"}
+: ${ROOTINCDIR:="$($rootconfig --incdir)"}
+: ${ROOTLIBS="$($rootconfig --glibs)"}
+: ${ROOTLIBDIR="$($rootconfig --libdir)"}
+
+: ${GXX:="g++"}
+: ${CPPFLAGS:="-I$ROOTINCDIR"}
+: ${CFLAGS:="-fPIC"}
+: ${CXXFLAGS:="$CFLAGS"}
+: ${OPTFLAGS:="-g -O0"}
+: ${SOLDFLAGS:="-fPIC -Wl,-soname,$SOEXECNAME"}
+
+function isFlagSet() {
+	local VARNAME="$1"
+	[[ -n "${!VARNAME}" ]] && [[ "${!VARNAME}" != 0 ]]
+}
+
+
+if isFlagSet EXEC ; then
+	isFlagSet DEBUG && set -x
+	
+	$GXX $CPPFLAGS "-I$ROOTINCDIR" "-I${SCRIPTDIR}" -I. $CXXFLAGS $OPTFLAGS -Wall -Wno-long-long -pedantic -std=c++11 $ROOTLIBS "-L$ROOTLIBDIR" $LDFLAGS -L. -o "$EXECNAME" "$@"  && echo "Executable '${EXECNAME}' created."
+	set +x
+elif isFlagSet SOEXEC ; then
+	isFlagSet DEBUG && set -x
+	
+	$GXX $CPPFLAGS "-I$ROOTINCDIR" "-I${SCRIPTDIR}" -I. $CXXFLAGS $OPTFLAGS -Wall -Wno-long-long -pedantic -std=c++11 $ROOTLIBS "-L$ROOTLIBDIR" $LDFLAGS -L. -shared -o "$SOEXECNAME" "$@"  && echo "Executable '${SOEXECNAME}' created."
+	set +x
+else
+	isFlagSet DEBUG && set -x
+	
+	$GXX $CPPFLAGS "-I$ROOTINCDIR" "-I${SCRIPTDIR}" -I. $CXXFLAGS -Wall -Wno-long-long -pedantic -std=c++11 -c -o ROOTg++.o.tmp "$@"
+	res=$?
+	set +x
+	if [[ $res == 0 ]]; then
+		if isFlagSet KEEP ; then
+			mv ROOTg++.o.tmp "$OBJNAME"
+			echo "File '$OBJNAME' created." 
+		else
+			rm -f ROOTg++.o.tmp ; echo "Ok."
+		fi
+	fi
+fi
+

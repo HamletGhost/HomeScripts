@@ -8,7 +8,7 @@ function RemoveSourceSuffix {
 	local OldName=""
 	while [[ "$Name" != "$OldName" ]]; do
 		OldName="$Name"
-		for Suffix in '.c' '.C' '.cpp' '.cxx' '.h' '.H' '.hpp' '.hxx' ; do
+		for Suffix in '.c' '.C' '.cpp' '.cxx' '.cc' '.h' '.H' '.hpp' '.hxx' '.hh' ; do
 			Name="${Name%${Suffix}}"
 		done
 	done

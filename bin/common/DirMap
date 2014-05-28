@@ -29,6 +29,8 @@ if [[ "$(basename -- "$0")" == "DirMap" ]]; then
 		    prints all the possible keys
 		--show , -s
 		    shows all the paths and their keys
+		--verify
+		    like '--show', but checks if all the endpoints exist
 		--version , -V
 		    print the version
 		--help , -h , -?
@@ -49,7 +51,7 @@ if [[ "$(basename -- "$0")" == "DirMap" ]]; then
 	
 	
 	
-	declare DEBUG=0 DoHelp=0 DoVersion=0 DoShowKeysMap=0 DoPrintKeysList=0
+	declare DEBUG=0 DoHelp=0 DoVersion=0 DoShowKeysMap=0 DoPrintKeysList=0 DoVerify=0
 	declare DirKey
 	declare NoMoreOptions=0
 	for ((iParam = 1; iParam <= $# ; ++iParam)); do
@@ -62,8 +64,12 @@ if [[ "$(basename -- "$0")" == "DirMap" ]]; then
 				( '--list' | '-l' )
 					DoPrintKeysList=1
 					;;
-				( '--show' | '-a' )
+				( '--show' | '-s' )
 					DoShowKeysMap=1
+					;;
+				( '--verify' )
+					DoShowKeysMap=1
+					DoVerify=1
 					;;
 				( '--dirmap='* )
 					DirMap="${Param#--dirmap=}"
@@ -266,13 +272,21 @@ if [[ "$(basename -- "$0")" == "DirMap" ]]; then
 	
 	function PresentPath() {
 		local PathVarName="$1"
+		local Verify="${2:-0}"
 		
 		local -a Aliases
 		Aliases=( $(GetPathAliases "$PathVarName") )
 		
 		[[ ${#Aliases[@]} -gt 0 ]] || return 1
 		
-		echo -n "${Aliases[0]}  => '$(BuildPath "$PathVarName")'"
+		local ExpandedPath="$(BuildPath "$PathVarName")"
+		echo -n "${Aliases[0]}"
+		if isFlagSet Verify ; then
+			if [[ ! -x "$ExpandedPath" ]] || [[ ! -d "$ExpandedPath" ]]; then
+				echo -n " [NOT ACCESSIBLE]"
+			fi
+		fi
+		echo -n "  => '${ExpandedPath}'"
 		if [[ ${#Aliases[@]} -gt 1 ]]; then
 			echo -n " (also: ${Aliases[1]}"
 			local -i iAlias
@@ -299,8 +313,9 @@ if [[ "$(basename -- "$0")" == "DirMap" ]]; then
 	
 	function PresentPaths() {
 		local PathVarName
+		local Verify="${1:-0}"
 		for PathVarName in "${!PathSpec_@}" ; do
-			PresentPath "$PathVarName"
+			PresentPath "$PathVarName" "$Verify"
 		done
 	} # PresentPaths()
 	
@@ -417,7 +432,7 @@ if [[ "$(basename -- "$0")" == "DirMap" ]]; then
 	
 	if isFlagSet DoShowKeysMap ; then
 		ReloadDirMaps
-		PresentPaths
+		PresentPaths "$DoVerify"
 		exit $?
 	fi
 	
