@@ -9,10 +9,12 @@
 #     first version
 # 1.1 (petrillo@fnal.gov)
 #     user interface
+# 1.2 (petrillo@fnal.gov) 20140701
+#     added peak memory detection
 #
 
 SCRIPTNAME="$(basename "$0")"
-SCRIPTVERSION="1.0"
+SCRIPTVERSION="1.2"
 
 : ${POLLDELAY:="60"}
 : ${PSOPTS:="-o user,pid,ppid,stat,psr,pcpu,pmem,sz,rss,vsz,stime,etime,cputime,tt"}
@@ -34,6 +36,8 @@ function help() {
 	Options:
 	--every=SECONDS ['${POLLDELAY}']
 	    print statistics every SECONDS
+	--mempeak , --vmpeak
+	    monitors the peak memory usage and prints it at the end of the process
 	--hdrevery=LINES ['${HeaderEvery}']
 	    print a header every LINES lines (0 disables the header completely)
 	--cols=COLUMNS ['${Width}']
@@ -146,6 +150,14 @@ function GetPID() {
 } # GetPID()
 
 
+function GetPeakMemory() {
+	local PID="$1"
+	local Peak="$(grep 'VmPeak' "/proc/${PID}/status" | sed -e 's/[^[:digit:]]*\([[:digit:]]\)/\1/g')"
+	echo "$Peak"
+	[[ -n "$Peak" ]]
+} # GetPeakMemory()
+
+
 function Gzip() { gzip -c "$@" ; }	
 function Bzip() { bzip2 -c "$@" ; }
 function Copy() { cat "$@" ; }
@@ -160,6 +172,29 @@ function SaveMemMaps() {
 	[[ -r "/proc/${PID}/maps" ]] || return 2
 	"$CopyMapProc" "/proc/${PID}/maps" > "$MapFile"
 } # SaveMemMaps()
+
+function isRunning() {
+	local PID="$1"
+	[[ -d "/proc/${PID}" ]]
+} # isRunning()
+
+
+function OnExit() {
+	[[ -z "$PID" ]] && return
+	if isRunning "$PID" ; then
+		echo -n "$(GetDateTag) | Process $PID still running"
+	else
+		echo -n "$(GetDateTag) | Process $PID has ended"
+	fi
+	if isFlagSet FindMemPeak ; then
+		if [[ -n "$LastMemoryPeak" ]]; then
+			echo -n ", memory peak ${LastMemoryPeak}"
+		else
+			echo -n ", memory peak not available"
+		fi
+	fi
+	echo "."
+} # OnExit()
 
 
 ################################################################################
@@ -179,6 +214,7 @@ for (( iParam = 1 ; iParam <= $# ; ++iParam )); do
 			( '--version' | '-V' )         DoVersion=1  ;;
 			
 			### behaviour options
+			( '--mempeak' | '--vmpeak' ) FindMemPeak=1 ;;
 			( '--every='* )    POLLDELAY="${Param#--*=}" ;;
 			( '--hdrevery='* ) HeaderEvery="${Param#--*=}" ;;
 			( '--cols='* )     Width="${Param#--*=}" ;;
@@ -254,6 +290,10 @@ if [[ "${#LogFiles[@]}" -gt 1 ]]; then
 	done
 fi
 
+# provide some feedback on exit
+trap OnExit EXIT 
+
+declare LastMemoryPeak="" NewMemoryPeak
 for (( iPolls = 0 ;; ++iPolls )); do
 	[[ -d "/proc/${PID}" ]] || break
 	if [[ $HeaderEvery -gt 0 ]] && [[ $((iPolls % $HeaderEvery)) == 0 ]]; then
@@ -261,6 +301,11 @@ for (( iPolls = 0 ;; ++iPolls )); do
 	fi
 	echo "$(GetDateTag) | $(PrintProcess "$PID" "${LogFiles[@]}" )" | cut -c 1-${Width}
 	[[ -n "$MEMMAP" ]] && SaveMemMaps "$PID" "$MEMMAP"
+	if isFlagSet FindMemPeak ; then
+		NewMemoryPeak="$(GetPeakMemory "$PID")"
+		[[ -n "$NewMemoryPeak" ]] && LastMemoryPeak="$NewMemoryPeak"
+	fi
 	sleep $POLLDELAY
 done
-echo "$(GetDateTag) | Process $PID has ended."
+
+# OnExit will do the deal here
