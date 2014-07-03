@@ -11,6 +11,8 @@
 #     user interface
 # 1.2 (petrillo@fnal.gov) 20140701
 #     added peak memory detection
+# 1.3 (petrillo@fnal.gov) 20140702
+#     added resident memory peak detection too
 #
 
 SCRIPTNAME="$(basename "$0")"
@@ -152,9 +154,11 @@ function GetPID() {
 
 function GetPeakMemory() {
 	local PID="$1"
-	local Peak="$(grep 'VmPeak' "/proc/${PID}/status" | sed -e 's/[^[:digit:]]*\([[:digit:]]\)/\1/g')"
-	echo "$Peak"
-	[[ -n "$Peak" ]]
+	local VZPeak="$(grep 'VmPeak' "/proc/${PID}/status" | sed -e 's/[^[:digit:]]*\([[:digit:]]\)/\1/g')"
+	local RSPeak="$(grep 'VmHWM' "/proc/${PID}/status" | sed -e 's/[^[:digit:]]*\([[:digit:]]\)/\1/g')"
+	echo "${VZPeak}"
+	echo "${RSPeak}"
+	[[ -n "$VZPeak" ]] && [[ -n "$RSPeak" ]]
 } # GetPeakMemory()
 
 
@@ -187,8 +191,8 @@ function OnExit() {
 		echo -n "$(GetDateTag) | Process $PID has ended"
 	fi
 	if isFlagSet FindMemPeak ; then
-		if [[ -n "$LastMemoryPeak" ]]; then
-			echo -n ", memory peak ${LastMemoryPeak}"
+		if [[ -n "$LastRSMemoryPeak" ]]; then
+			echo -n ", memory peak ${LastVZMemoryPeak}, resident ${LastRSMemoryPeak}"
 		else
 			echo -n ", memory peak not available"
 		fi
@@ -293,7 +297,7 @@ fi
 # provide some feedback on exit
 trap OnExit EXIT 
 
-declare LastMemoryPeak="" NewMemoryPeak
+declare LastRSMemoryPeak="" LastVZMemoryPeak="" NewRSMemoryPeak NewVZMemoryPeak
 for (( iPolls = 0 ;; ++iPolls )); do
 	[[ -d "/proc/${PID}" ]] || break
 	if [[ $HeaderEvery -gt 0 ]] && [[ $((iPolls % $HeaderEvery)) == 0 ]]; then
@@ -302,8 +306,11 @@ for (( iPolls = 0 ;; ++iPolls )); do
 	echo "$(GetDateTag) | $(PrintProcess "$PID" "${LogFiles[@]}" )" | cut -c 1-${Width}
 	[[ -n "$MEMMAP" ]] && SaveMemMaps "$PID" "$MEMMAP"
 	if isFlagSet FindMemPeak ; then
-		NewMemoryPeak="$(GetPeakMemory "$PID")"
-		[[ -n "$NewMemoryPeak" ]] && LastMemoryPeak="$NewMemoryPeak"
+		{ read NewVZMemoryPeak ; read NewRSMemoryPeak ; } < <(GetPeakMemory "$PID")
+		if [[ -n "$NewRSMemoryPeak" ]]; then
+			LastRSMemoryPeak="$NewRSMemoryPeak"
+			LastVZMemoryPeak="$NewVZMemoryPeak"
+		fi
 	fi
 	sleep $POLLDELAY
 done
