@@ -9,9 +9,8 @@ for LARSCRIPTDIR in \
 do
 	[[ -d "${LARSCRIPTDIR}/setup" ]] && break
 done
-if [[ -d "$LARSCRIPTDIR" ]]; then
-	export LARSCRIPTDIR
-	AddToPath PATH "$LARSCRIPTDIR"
+if [[ -x "${LARSCRIPTDIR}/setup_scripts.sh" ]]; then
+	source "${LARSCRIPTDIR}/setup_scripts.sh"
 else
 	ERROR "LArSoft script directory not found."
 fi
