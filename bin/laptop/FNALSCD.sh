@@ -16,12 +16,12 @@ MountPoint="/mnt/FNALdata"
 Device="$(readlink -f "/dev/disk/by-id/dev/disk/by-id/ata-WDC_WD40EZRX-00SPEB0_WD-WCC4E0500885")"
 : ${Device:="/dev/sdb"}
 
-case "$1" in
-	( --umount | -u | umount | unmount )
+case "${1:-default}" in
+	( '--umount' | '-u' | 'umount' | 'unmount' )
 		sudo /usr/local/bin/UmountDrive.sh "${Device#/dev/}"
 		;;
 	
-	( --mount | -m | mount )
+	( '--mount' | '-m' | 'mount' | 'default' )
 		
 		sudo /usr/local/bin/ActivateDrive.sh "${Device#/dev/}"
 		

@@ -1,1 +1,14 @@
-xrandr --output LVDS1 --mode 1366x768 --output VGA1 --above LVDS1 --mode 1280x1024
+#
+# ,-------------------------.
+# |                         |
+# |       1920 x 1080       |
+# |                         |
+# |                         |
+# `-----,-------------,-----'
+#       |             |
+#       | 1366 x 768  |
+#       |  (primary)  |
+#       |             |
+#       `-------------'
+#
+xrandr --output LVDS1 --mode 1366x768 --pos 277x1080 --output VGA1 --mode 1920x1080 

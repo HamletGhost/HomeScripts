@@ -13,10 +13,12 @@
 #     added peak memory detection
 # 1.3 (petrillo@fnal.gov) 20140702
 #     added resident memory peak detection too
+# 1.4 (petrillo@fnal.gov) 20140814
+#     added output to files
 #
 
 SCRIPTNAME="$(basename "$0")"
-SCRIPTVERSION="1.2"
+SCRIPTVERSION="1.4"
 
 : ${POLLDELAY:="60"}
 : ${PSOPTS:="-o user,pid,ppid,stat,psr,pcpu,pmem,sz,rss,vsz,stime,etime,cputime,tt"}
@@ -52,6 +54,10 @@ function help() {
 	    and time, up to the seconds
 	--logfile=LOGFILE
 	    prints the current line of this log file (can have a slight delay)
+	--output=OUTPUTFILE
+	    appends the output to a file (can be specified multiple times)
+	--stdout
+	    writes the output on screen (default only if no output file is specified)
 	EOH
 } # help()
 
@@ -112,7 +118,14 @@ function PrintProcess() {
 			[[ iLog -gt 0 ]] && let ++iLog
 		done
 	fi
-	echo "$Line"
+	local OutputFile
+	for OutputFile in "${OutputFiles[@]}" ; do
+		if [[ -z "$OutputFile" ]]; then
+			echo "$Line"
+		else
+			echo "$Line" >> "$OutputFile"
+		fi
+	done
 	return $res
 } # PrintProcess()
 
@@ -205,7 +218,7 @@ function OnExit() {
 declare DoHelp=0 DoVersion=0 OnlyPrintEnvironment=0 NoLogDump=0
 
 declare HeaderEvery=25
-declare -a LogFiles
+declare -a LogFiles OutputFiles
 
 declare -i NoMoreOptions=0
 declare -a Processes
@@ -226,6 +239,8 @@ for (( iParam = 1 ; iParam <= $# ; ++iParam )); do
 			( '--memmap' )     MEMMAP="$DEFAULTMAPNAME" ;;
 			( '--memmap='* )   MEMMAP="${Param#--*=}" ;;
 			( '--logfile='* )  LogFiles=( "${LogFiles[@]}" "${Param#--*=}" ) ;;
+			( '--output='* )   OutputFiles=( "${OutputFiles[@]}" "${Param#--*=}" ) ;;
+			( '--stdout' )     OutputFiles=( "${OutputFiles[@]}" "" ) ;;
 			
 			### other stuff
 			( '-' | '--' )
@@ -261,6 +276,8 @@ if [[ -z "$1" ]] || [[ "$1" == "-h" ]] || [[ "$1" == "-?" ]] || [[ "$1" == "--he
 	help
 	exit
 fi
+
+[[ "${#OutputFiles[*]}" == 0 ]] && OutputFiles=( '' )
 
 ProcessSpec="${Processes[0]}"
 PID="$(GetPID "${Processes[0]}")"
