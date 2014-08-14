@@ -12,6 +12,11 @@ alias vi='vim'
 alias xc='xclock -update 1'
 alias inject='eject -t'
 
+# some fun here...
+alias whereami="echo \$(hostname):\$(pwd)"
+alias whenami="date"
+alias whyami="echo 42"
+
 function chdirl() {
 	local Dir="$1"
 	chdir "$Dir" && mkdir "logs"
