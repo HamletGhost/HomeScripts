@@ -118,16 +118,22 @@ function PrintProcess() {
 			[[ iLog -gt 0 ]] && let ++iLog
 		done
 	fi
+	echo "$Line"
+	return $res
+} # PrintProcess()
+
+
+function ReportProcess() {
+	local OutputLine="$(GetDateTag) | $(PrintProcess "$@" )"
 	local OutputFile
 	for OutputFile in "${OutputFiles[@]}" ; do
 		if [[ -z "$OutputFile" ]]; then
-			echo "$Line"
+			echo "$OutputLine"
 		else
-			echo "$Line" >> "$OutputFile"
+			echo "$OutputLine" >> "$OutputFile"
 		fi
 	done
-	return $res
-} # PrintProcess()
+} # ReportProcess()
 
 
 function GetDateTag() {
@@ -320,7 +326,7 @@ for (( iPolls = 0 ;; ++iPolls )); do
 	if [[ $HeaderEvery -gt 0 ]] && [[ $((iPolls % $HeaderEvery)) == 0 ]]; then
 		echo "$HeaderLine" | cut -c 1-${Width}
 	fi
-	echo "$(GetDateTag) | $(PrintProcess "$PID" "${LogFiles[@]}" )" | cut -c 1-${Width}
+	ReportProcess "$PID" "${LogFiles[@]}" | cut -c 1-${Width}
 	[[ -n "$MEMMAP" ]] && SaveMemMaps "$PID" "$MEMMAP"
 	if isFlagSet FindMemPeak ; then
 		{ read NewVZMemoryPeak ; read NewRSMemoryPeak ; } < <(GetPeakMemory "$PID")
