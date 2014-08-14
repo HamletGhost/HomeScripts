@@ -123,16 +123,21 @@ function PrintProcess() {
 } # PrintProcess()
 
 
-function ReportProcess() {
-	local OutputLine="$(GetDateTag) | $(PrintProcess "$@" )"
+function Report() {
+	local Line="$*"
 	local OutputFile
 	for OutputFile in "${OutputFiles[@]}" ; do
 		if [[ -z "$OutputFile" ]]; then
-			echo "$OutputLine"
+			echo "$Line"
 		else
-			echo "$OutputLine" >> "$OutputFile"
+			echo "$Line" >> "$OutputFile"
 		fi
 	done
+} # Report()
+
+
+function ReportProcess() {
+	Report "$(GetDateTag) | $(PrintProcess "$@" )"
 } # ReportProcess()
 
 
@@ -204,19 +209,21 @@ function isRunning() {
 
 function OnExit() {
 	[[ -z "$PID" ]] && return
+	local ClosingRemark
 	if isRunning "$PID" ; then
-		echo -n "$(GetDateTag) | Process $PID still running"
+		ClosingRemark+="$(GetDateTag) | Process $PID still running"
 	else
-		echo -n "$(GetDateTag) | Process $PID has ended"
+		ClosingRemark+="$(GetDateTag) | Process $PID has ended"
 	fi
 	if isFlagSet FindMemPeak ; then
 		if [[ -n "$LastRSMemoryPeak" ]]; then
-			echo -n ", memory peak ${LastVZMemoryPeak}, resident ${LastRSMemoryPeak}"
+			ClosingRemark+=", memory peak ${LastVZMemoryPeak}, resident ${LastRSMemoryPeak}"
 		else
-			echo -n ", memory peak not available"
+			ClosingRemark+=", memory peak not available"
 		fi
 	fi
-	echo "."
+	ClosingRemark+="."
+	Report "$ClosingRemark"
 } # OnExit()
 
 
@@ -297,7 +304,7 @@ case "$MEMMAP" in
 	( '.bz2' | '.gz2' ) MEMMAP="${DEFAULTMAPNAME}${MEMMAP}" ;;
 	( * ) ;;
 esac
-[[ -n "$MEMMAP" ]] && echo "Memory map file name(s): '${MEMMAP}'"
+[[ -n "$MEMMAP" ]] && Report "Memory map file name(s): '${MEMMAP}'"
 case "$MEMMAP" in
 	( *.gz )  CopyMapProc=Gzip ;;
 	( *.bz2 ) CopyMapProc=Bzip ;;
@@ -311,21 +318,19 @@ HeaderLine="$(printf "%-${#DateTag}s" "Hit <Ctrl>+<C> to exit" | cut -c 1-${#Dat
 unset DateTag
 
 if [[ "${#LogFiles[@]}" -gt 1 ]]; then
-	echo "Monitored logs (${#LogFiles[@]}):"
+	Report "Monitored logs (${#LogFiles[@]}):"
 	for (( iLog = 0 ; iLog < ${#LogFiles[@]} ; ++iLog )); do
-		echo " [$((iLog+1))] '${LogFiles[iLog]}'"
+		Report " [$((iLog+1))] '${LogFiles[iLog]}'"
 	done
 fi
 
 # provide some feedback on exit
-trap OnExit EXIT 
+trap OnExit EXIT
+
+[[ $HeaderEvery -gt 0 ]] && Report "$HeaderLine" | cut -c 1-${Width}
 
 declare LastRSMemoryPeak="" LastVZMemoryPeak="" NewRSMemoryPeak NewVZMemoryPeak
-for (( iPolls = 0 ;; ++iPolls )); do
-	[[ -d "/proc/${PID}" ]] || break
-	if [[ $HeaderEvery -gt 0 ]] && [[ $((iPolls % $HeaderEvery)) == 0 ]]; then
-		echo "$HeaderLine" | cut -c 1-${Width}
-	fi
+for (( iPolls = 1 ;; ++iPolls )); do
 	ReportProcess "$PID" "${LogFiles[@]}" | cut -c 1-${Width}
 	[[ -n "$MEMMAP" ]] && SaveMemMaps "$PID" "$MEMMAP"
 	if isFlagSet FindMemPeak ; then
@@ -336,6 +341,10 @@ for (( iPolls = 0 ;; ++iPolls )); do
 		fi
 	fi
 	sleep $POLLDELAY
+	[[ -d "/proc/${PID}" ]] || break
+	if [[ $HeaderEvery -gt 0 ]] && [[ $((iPolls % $HeaderEvery)) == 0 ]]; then
+		echo "$HeaderLine" | cut -c 1-${Width}
+	fi
 done
 
 # OnExit will do the deal here
