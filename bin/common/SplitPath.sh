@@ -12,6 +12,8 @@ for VarName in "$@" ; do
 			;;
 	esac
 #	echo "${VarName}"
-	tr "$SEP" "\n" <<< "${!VarName}"
+	VarValue="${!VarName}"
+	[[ -z "$VarValue" ]] && continue
+	tr "$SEP" "\n" <<< "$VarValue"
 done
 
