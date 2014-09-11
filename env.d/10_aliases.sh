@@ -10,12 +10,15 @@ alias rgrep="grep -R"
 alias vi='vim'
 
 alias xc='xclock -update 1'
+alias gvv='gv --watch'
 alias inject='eject -t'
 
 # some fun here...
 alias whereami="echo \$(hostname):\$(pwd)"
 alias whenami="date"
 alias whyami="echo 42"
+
+function go() { local Dir="$1" ; cd "$Dir" && ls ; }
 
 function chdirl() {
 	local Dir="$1"
