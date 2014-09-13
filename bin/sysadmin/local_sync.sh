@@ -10,30 +10,31 @@ REMOTESETUPSCRIPT="bin/PortageFTPserver.sh"
 : ${TARGET:="world"}
 : ${DEFAULTSERVER:="glamis.thebard.net"}
 
+declare -ar Servers=( "glamis.thebard.net" "malvolio.thebard.net" )
+
 MakeConf="/etc/portage/make.conf"
 
 Services=( 'rsyncd' 'pure-ftpd' )
 
-function STDERR() {
-	echo "$*" >&2
-}
+function STDERR() { echo "$*" >&2 ; } 
 
-function ERROR() {
-	STDERR "ERROR: $*"
-}
+function ERROR() { STDERR "ERROR: $*" ; }
+
+function FATAL() {
+	local Code="$1"
+	shift
+	STDERR "FATAL (${Code}): $*"
+	exit $Code
+} # FATAL()
 
 function isFlagSet() {
 	local VarName="$1"
 	[[ -n "${!VarName//0}" ]]
 }
 
-function isDebugging() {
-	isFlagSet DEBUG
-}
+function isDebugging() { isFlagSet DEBUG ; }
 
-function DBG() {
-	isDebugging && STDERR "$*"
-}
+function DBG() { isDebugging && STDERR "$*" ; }
 
 function DUMPVAR() {
 	local VarName="$1"
@@ -170,18 +171,28 @@ for (( iParam = 1 ; iParam <= $# ; ++iParam )); do
 	fi
 done
 
-if [[ -z "$SERVER" ]]; then
-	if [[ "$NParams" -ge 1 ]]; then
-		SERVER="${Params[0]}"
-	else
-		SERVER="$DEFAULTSERVER"
-	fi
-fi
-
 if isFlagSet DoHelp ; then
 	help
 	exit
 fi
+
+if [[ -z "$SERVER" ]]; then
+	if [[ "$NParams" -ge 1 ]]; then
+		SERVER="${Params[0]}"
+		ping -c 1 -w 2 -q "$SERVER" >& /dev/null || FATAL 1 "Can't contact server '${SERVER}'"
+	else
+		for SERVER in "${Servers[@]}" "" ; do
+			[[ -n "$SERVER" ]] || continue
+			# this server?
+			[[ "$HOSTNAME" == "$SERVER" ]] && continue
+			[[ "${SERVER#${HOSTNAME}.}" != "$SERVER" ]] && continue
+			# does the server exist?
+			ping -c 1 -w 2 -q "$SERVER" >& /dev/null || continue
+		done
+		[[ -z "$SERVER" ]] && FATAL 1 "No server available (tried: ${Servers[@]})"
+	fi
+fi
+
 
 # set variables
 PortageRsyncKey="gentoo-portage"
