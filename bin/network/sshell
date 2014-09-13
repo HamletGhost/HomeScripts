@@ -1,36 +1,207 @@
-#!/bin/sh
+#!/bin/bash
+#
+# Script versions:
+# < 1.0: developement versions
+#
+#
 
 SCRIPTNAME="$(basename "$0")"
 SCRIPTDIR="$(dirname "$0")"
 CWD="$(pwd)"
 
-: ${LEFTVARSEP:='%'}
-: ${RIGHTVARSEP:="$LEFTVARSEP"}
+SCRIPTVERSION="0.9"
 
-
-: ${MODE:="${M:-"shell"}"}
-: ${REMOTEUSER:="petrillo"}
-: ${REMOTEHOST:="$1"}
-: ${REMOTEDOMAIN:="fnal.gov"}
-: ${KRB5REALM:=""}
-: ${SSH:="ssh -l %REMOTEUSERKEY%"}
-: ${SSHOPT:="-XY"}
-: ${RSYNC="rsync"}
-: ${SCP:="$RSYNC -e \"${SSH}\""}
-: ${SCPOPT:="-av"}
-
-: ${USECOMPACTHOSTKEY:="0"}
-
-: ${KRB5LIFETIME:="26h"}
-: ${KRB5RENEWTIME:="7d"}
-: ${KRB5OPTS:="-f"}
-: ${NAT:="0"}
-
+# program paths
 : ${kinit:="kinit"}
-: ${mkdir:="mkdir -p"}
-: ${rmdir:="rmdir"}
+: ${ssh:="ssh"}
+: ${scp:="scp"}
+: ${mkdir:="mkdir"}
 
-: ${KRB5BASECCDIR:="${HOME}/tmp/krb5"}
+ssh_default_options=( '-X' )
+# ssh_default_options=( '-X' '-Y' )
+
+
+function help() {
+	cat <<-EOH
+	Operates on a remote server via SSH.
+	
+	Usage:  ${SCRIPTNAME}  [options] [--] [parameters]
+	
+	The script operates in one of the following modes, specified as options:
+	
+	--ssh [default]
+	    opens an iterative shell on the remote host
+	--read , -r , read , r
+	    copies the specified files from a directory in the remote server into
+	    the current directory
+	--write , -w , write , w
+	    writes the specified files into a directory in the remote server
+	--version , -V
+	    just prints the version numbre and exits
+	--help , -h , -?
+	    just prints this help message and exits
+	
+	Each mode can have its specific options, in addition to commonly accepted
+	ones:
+	
+	EOH
+	help_common
+} # help()
+
+function help_common() {
+	cat <<-EOH
+	Verbosity options:
+	--fake
+	    only writes the commands it would execute (usually assumes they succeed)
+	--debug[=LEVEL]
+	    enables debugging output
+	--verbose
+	    increases the verbosity of the program (e.g. prints the commands it
+	    executes)
+	--quiet
+	    decreases the verbosity of the command
+	
+	SSH options:
+	--user=REMOTEUSER [${USER}]
+	    uses this user for remote log in
+	--host=HOSTNAME
+	    the name of the SSH server to be contacted
+	--domain=DOMAIN
+	    if specified, it is appended to the host name unless the latter already
+	    includes a domain
+	--autohost[=ScriptName]
+	    if no host name is specified, it uses the script name as host name,
+	    unless the script name matches ScriptName; if ScriptName is omitted,
+	    'sshell' is used. This option can be specified multiple times to exclude
+	    multiple script names
+	--hostprefix=PREFIX
+	    prepends PREFIX to the host name
+	--hostsuffix=SUFFIX
+	    appends SUFFIX to the host name
+	
+	Kerberos authentication options (see \`man 1 kinit\` for details):
+	--k5realm=KRB5REALM
+	--k5user=KRB5USER [${USER}]
+	--k5instance=KRB5USERINSTANCE
+	    if a Kerberos5 realm is specified, a ticket will be obtained from that
+	    realm, using KRB5USER as user (by default, the same as --remote option)
+	    and an optional instance KRB5USERINSTANCE (e.g. 'root' for administration
+	    privileges)
+	--nonew
+	    do not attempt to get a new Kerberos ticket (can still renew an existing
+	    one)
+	--norenew
+	    do not attempt to renew an existing ticket (can still obtain a new one)
+	--noticket
+	    do not attempt to get a Kerberos ticket at all (equivalent to
+	    options --nonew and --norenew together)
+	--krblifetime=LIFETIME
+	    when requesting a new ticket, ask it to last for lifetime (it may still
+	    be renewed beyond it)
+	--krbrenewtime=RENEWTIME
+	    when requesting a new ticket, ask to allow it to be renewed up to
+	    RENEWTIME time (in total)
+	EOH
+} # help_common()
+
+
+function help_help() {
+	cat <<-EOH
+	Mode: help
+	
+	  ${SCRIPTNAME}  <--help[=Mode]|-h|-?>
+	
+	Prints help about this script, or about its specified mode if Mode is
+	specified.
+	
+	EOH
+} # help_help()
+
+
+function help_version() {
+	cat <<-EOH
+	Mode: version
+	
+	  ${SCRIPTNAME}  <--version|-V>
+	
+	Prints the version of this script.
+	
+	EOH
+} # help_version()
+
+
+function help_read() {
+	cat <<-EOH
+	Mode: read
+	  ${SCRIPTNAME}  <--read|-r|read|r> [options]
+	    [--dest=DEST] source [source ...]
+	    [--dest=DEST source [source ...]]
+	  ${SCRIPTNAME}  <--read|-r|read|r> [options] [--]
+	    source [source ...] [destination]
+	
+	Reads the specified remote files into the local host.
+	If a relative source path is specified, it is relative to the directory where
+	ssh lands (typically, user's home directory).
+	Each destination option (below) refers to the following sources, up to the
+	next destination option.
+	The sources before the first destination option (if any) are copied to the
+	first specified destination.
+	In the second form, where no destination option is specified, the destination
+	for all the source files is the last parameter. If only one parameter is
+	present, it is interpreted as a source to be copied to the current directory.
+	
+	If the destination can be detected to be a directory, that directory is
+	created. A destination is detected as a directory if it is destination for
+	multiple sources or if its name ends in '/'.
+	
+	Read mode options:
+	--src=SOURCE
+	    specifies a remote source; alternative way to specify sources.
+	    If a relative path is specified, it is relative to the directory where
+	    ssh lands (typically, user's home directory)
+	--dest=DESTDIR
+	    the directory in the local host where to copy the following sources
+	
+	In addition, the common options are accepted:
+	
+	EOH
+	help_common
+} # help_read()
+
+
+function help_write() {
+	cat <<-EOH
+	Mode: write
+	  ${SCRIPTNAME}  <--write|-w|write|w> [options]
+	    [--dest=DEST] source [source ...]
+	    [--dest=DEST source [source ...]]
+	  ${SCRIPTNAME}  <--write|-w|write|w> [options] [--]
+	    source [source ...] [destination]
+	
+	Writes the specified local files to the remote server.
+	Each destination option (below) refers to the following sources, up to the
+	next destination option.
+	The sources before the first destination option (if any) are copied to the
+	first specified destination.
+	In the second form, where no destination option is specified, the destination
+	for all the source files is the last parameter. If only one parameter is
+	present, it is interpreted as a source to be copied to the directory where
+	ssh lands on the remote server (".", typically, user's home directory).
+	
+	Write mode options:
+	--src=SOURCE
+	    specifies a source; alternative way to specify sources
+	--dest=DESTDIR
+	    the directory under the remote host where to copy the following sources;
+	    if a relative path is specified, it is relative to the directory where
+	    ssh lands (typically, user's home directory)
+	
+	In addition, the common options are accepted:
+	
+	EOH
+	help_common
+} # help_write()
+
 
 function isFlagSet() {
 	local VARNAME="$1"
@@ -44,43 +215,49 @@ function isFlagUnset() {
 
 function isFlagOver() {
 	local VARNAME="$1"
-	local Threshold="${2:-"0"}"
-	[[ -n "${!VARNAME}" ]] && [[ "${!VARNAME}" -gt "$Threshold" ]]
+	local Threshold="${2:-"1"}"
+	[[ -n "${!VARNAME}" ]] && [[ "${!VARNAME}" -ge "$Threshold" ]]
 }
 
-function ERROR() {
-	echo "$*" >&2
-}
+function STDERR() { echo "$*" >&2 ; }
 
-function ERRORN() {
-	echo -n "$*" >&2
-}
+function STDERRN() { echo -n "$*" >&2 ; }
+
+function ERROR() { STDERR "ERROR: $*" ; }
 
 function FATAL() {
-	local code=$1
+	local Code=$1
 	shift
-	ERROR "$SCRIPTNAME - Fatal error: $*"
-	exit $code
-}
+	STDERR "FATAL (${Code}): $*"
+	exit $Code
+} # FATAL()
 
-function isDebugging() {
-	isFlagOver DEBUG $1
-}
+function LASTFATAL() {
+	local -i ExitCode="$?"
+	[[ $ExitCode == 0 ]] || FATAL $ExitCode "$*"
+} # LASTFATAL()
 
-function DBG() {
-	isDebugging && ERROR "$*"
-}
+
+function isDebugging() { isFlagOver DEBUG $1 ; }
+
+function DBG() { isDebugging && STDERR "DBG| $*" ; }
+
+function DBGN() {
+	local Level="$1"
+	shift
+	isDebugging $Level && STDERR "DBG[${Level}]| $*"
+} # DBGN()
 
 function CMDDBG() {
 	isDebugging || return
-	for Par in "$@" ; do ERRORN "'${Par}' " ; done
-	ERROR ""
-}
+	for Par in "$@" ; do STDERRN "'${Par}' " ; done
+	STDERR ""
+} # CMDDBG()
 
 function DUMPVAR() {
 	local VarName="$1"
 	DBG "${VarName}='${!VarName}'"
-}
+} # DUMPVAR()
 
 function DUMPVARS() {
 	isDebugging || return
@@ -88,197 +265,460 @@ function DUMPVARS() {
 	for VarName in "$@" ; do
 		DUMPVAR "$VarName"
 	done
-}
+} # DUMPVARS()
 
 
-function SubstVars() {
-	local Key="$1"
-	local Result="$Key"
-	while true; do
-		local VarName="$(echo "$Key" | sed -e "s/.*${LEFTVARSEP}\(.*\)${RIGHTVARSEP}.*/\1/")"
-		[[ "$VarName" == "$Key" ]] && break
-		DBG "Replacing variable '${VarName}' in '${Key}'"
-		local VarValue="${!VarName}"
-		Result="$(echo "$Key" | sed -e "s/${LEFTVARSEP}${VarName}${RIGHTVARSEP}/${VarValue}/g")"
-		DBG " -> '${Result}' (${VarName}='${VarValue}')"
-		[[ "$Result" == "$Key" ]] && ERROR "Failed to substitute '${VarName}' variable." && return 1
-		Key="$Result"
+function MSG() { isFlagSet QUIET || echo "$@" ; }
+
+
+function SetOperationMode() {
+	local Mode="$1"
+	if [[ -n "$MODE" ]]; then
+		if [[ "$Mode" != "$MODE" ]]; then
+			FATAL 1 "Conflicting mode specifications: ${MODE} and ${Mode}"
+		else
+			STDERR "WARNING: mode '${Mode}' set more than once."
+			return
+		fi
+	fi
+	MODE="$Mode"
+} # SetOperationMode()
+
+
+function Execute() {
+	local -a Command=( "$@" )
+	local -i ExitCode=0
+	
+	# print the command being run
+	if isFlagSet FAKE || isFlagSet VERBOSE || isDebugging ; then
+		echo "${Command[@]}"
+	fi
+	
+	# run the command
+	if isFlagUnset FAKE ; then
+		"${Command[@]}"
+		ExitCode=$?
+	fi
+	
+	return $ExitCode
+} # Execute()
+
+
+################################################################################
+###
+### parameter parser
+###
+
+function parse_options_common() {
+	local -i iParam=$(( $1 - 1 ))
+	shift
+	local -i NDigested=0
+	
+	while [[ $iParam -lt $# ]]; do
+		let ++iParam
+		local Param="${!iParam}"
+		
+		DBGN 3 "  is '${Param}' a common option?"
+		
+		# by default, assume we swallow one parameter only
+		let ++NDigested
+		
+		case "$Param" in
+			
+			# verbosity options
+			( "--fake" )          FAKE=1 ;;
+			( "--debug" )         DEBUG=1 ;;
+			( "--debug="* )       DEBUG="${Param#--*=}" ;;
+			( "--verbose" )       let ++VERBOSE ;;
+			( "--quiet" )         let ++QUIET ;;
+			
+			# SSH options
+			( "--user="* )        RemoteUser="${Param#--*=}" ;;
+			( "--server="* | '--host='* )
+			                      RemoteHost="${Param#--*=}" ;;
+			( "--domain="* )      RemoteDomain="${Param#--*=}" ;;
+			( "--sshopt="* )      ssh_options=( "${ssh_options[@]}" "${Param#--*=}" ) ;;
+			( "--nodefopts="* )   NoDefaultSSHoptions=1 ;;
+			( "--autohost" )      AutoHost=( "${AutoHost[@]}" 'sshell' ) ;;
+			( "--autohost="* )    AutoHost=( "${AutoHost[@]}" "${Param#--*=}" ) ;;
+			( "--hostprefix="* )  RemoteHostPrefix="${Param#--*=}" ;;
+			( "--hostsuffix="* )  RemoteHostSuffix="${Param#--*=}" ;;
+			
+			# Kerberos options
+			( "--k5realm="* )     KerberosRealm="${Param#--*=}" ;;
+			( "--k5user="* )      KerberosUser="${Param#--*=}" ;;
+			( "--k5instance="* )  KerberosInstance="${Param#--*=}" ;;
+			( "--nonew" )         KerberosNewTicket=0 ;;
+			( "--norenew" )       KerberosRenewTicket=0 ;;
+			( "--noticket" )      KerberosNewTicket=0 ; KerberosRenewTicket=0 ;;
+			( "--krblifetime=" )  KerberosTicketLifetime="${Param#--*=}" ;;
+			( "--krbrenewtime=" ) KerberosTicketRenewTime="${Param#--*=}" ;;
+			( "--nat=" )          isNAT=1 ;;
+			( * )
+				return $(( NDigested - 1 ))
+		esac
+		break
 	done
-	echo "$Result"
-	return 0
-}
+	return $NDigested
+} # parse_options_common()
 
 
-function help() {
-	cat <<EOH
+function parse_options_help() {
+	
+	local -i iParam=$(( $1 - 1 ))
+	shift
+	local -i NDigested=0
+	
+	while [[ $iParam -lt $# ]]; do
+		let ++iParam
+		local Param="${!iParam}"
+		
+		# by default, assume we swallow one parameter only
+		let ++NDigested
+		
+		DBGN 3 "  is '${Param}' a ${MODE} option?"
+		
+		case "$Param" in
+			( '--help' | '-h' | '-?' ) HelpTopics=( "${HelpTopics[@]}" 'help' ) ;;
+			( '--version' | '-V' )     HelpTopics=( "${HelpTopics[@]}" 'version' ) ;;
+			( '--ssh' )                HelpTopics=( "${HelpTopics[@]}" 'ssh' ) ;;
+			( '--write' | '-w' | 'write' | 'w' ) HelpTopics=( "${HelpTopics[@]}" 'write' ) ;;
+			( '--read' | '-r' | 'read' | 'r' )   HelpTopics=( "${HelpTopics[@]}" 'read' ) ;;
+			
+			( * )
+				[[ "$MODE" == 'help' ]] && FATAL 1 "No help available on '${Param}'"
+				return $(( NDigested - 1 ))
+		esac
+		break
+	done
+	return $NDigested
+} # parse_options_help()
 
-Usage:  $SCRIPTNAME [options]
 
-This script can be used in different modes, selected by the MODE environment variable:
-- "shell": an interactive ssh connection is opened
-- "write": files are transferred to the remote host
-- "read": files are copied from the remote host
-
-Modes (MODE variable, default: '${MODE}'):
-"shell": $SCRIPTNAME [ssh options]
-	Just opens a shell with specified ssh options together with the default ones from SSHOPT variable;
-"read": $SCRIPTNAME SourcesSpec DestinationDir
-	Copies specified remote files to a local directory
-	- SourcesSpec: path of files to be copied, remote host specification must be omitted
-	- DestinationDir: destination directory in local host; it's created if not existing
-"write": $SCRIPTNAME SourcesSpec DestinationDir
-	Copies files to a specified directory of the remote host
-	- SourcesSpec are the files to be copied to the remote host
+function parse_options_ssh() {
+	local -i iParam=$(( $1 - 1 ))
+	shift
+	
+	local Param="${!iParam}"
+	
+	DBGN 3 "  is '${Param}' a ${MODE} option?"
+	
+	# accept all the options as SSH options
+	ssh_options=( "${ssh_options[@]}" "$Param" )
+	
+	return 1
+} # parse_options_ssh()
 
 
-Variables:
-REMOTEUSER ('$REMOTEUSER'), REMOTEHOST ('$REMOTEHOST'), REMOTEDOMAIN ('$REMOTEDOMAIN')
-	the parameters specifying the target, including host and user
-SSHOPT ('$SSHOPT'):
-	options for ssh connection
-MODE ('$MODE'; shortcut: "M")
-	see above
-REPLICATE ('$REPLICATE') [experimental]
-	in copy modes, it copies the files in the same directory as the original;
-	if specified, the destination parameter must not be specified and the last
-	parameter will be considered a source as well.
-	All the files are copied in the same directory as the FIRST of the sources;
-	if it is a relative path, it will start from HOME directory (the HOME on the
-	destination host), unless "RELATIVE" flag is set, in which case the current
-	directory (minus the local HOME header) is taken as base
+function parse_options_write() {
+	
+	local -i iParam=$(( $1 - 1 ))
+	shift
+	local -i NDigested=0
+	
+	while [[ $iParam -lt $# ]]; do
+		let ++iParam
+		local Param="${!iParam}"
+		
+		DBGN 3 "  is '${Param}' a ${MODE} option?"
+		
+		# by default, assume we swallow one parameter only
+		let ++NDigested
+		
+		if [[ "${Param:0:1}" == '-' ]] && isFlagUnset NoMoreOptions ; then
+			case "$Param" in
+				( "--dest="* )
+					CurrentDestination="${Param#--*=}"
+					: ${DefaultDestination:="$CurrentDestination"}
+					;;
+				( "--src="* )
+					Destinations=( "${Destinations[@]}" "$CurrentDestination" )
+					Sources=( "${Sources[@]}" "${Param#--*=}" )
+					;;
+				( * )
+					FATAL 1 "Invalid ${MODE} option '${Param}'."
+			esac
+		else
+			Destinations=( "${Destinations[@]}" "$CurrentDestination" )
+			Sources=( "${Sources[@]}" "$Param" )
+		fi
+		
+		break
+	done
+	return $NDigested
+} # parse_options_write()
 
-EOH
-	[[ -n "$1" ]] && exit $1
-}
+function parse_options_read() { parse_options_write "$@" ; }
 
-if [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]] || [[ "$1" == "-?" ]]; then
-	help 0
-fi
 
-REMOTEPATH=${REMOTEHOST}
-REMOTEHOSTNAME="${REMOTEPATH/.*}"
-[[ -n "$REMOTEDOMAIN" ]] && [[ "$REMOTEHOST" == "$REMOTEHOSTNAME" ]] && REMOTEPATH="${REMOTEPATH}.${REMOTEDOMAIN}"
-[[ -n "$REMOTEUSER" ]] && REMOTEPATH="${REMOTEUSER}@${REMOTEPATH}"
-[[ -z "$REMOTEUSER" ]] && REMOTEUSER="${REMOTEPATH/@*}"
-REMOTEUSERKEY="$REMOTEUSER"
-[[ -n "$USERINSTANCE" ]] && REMOTEUSERKEY="${REMOTEUSERKEY}/${USERINSTANCE}"
+declare MODE=""
+declare -i NoMoreOptions=0
 
-if isFlagSet FAKE ; then
-	FAKECMD='echo'
-else
-	FAKECMD='eval'
-fi
+declare -i DEBUG=0 QUIET=0 VERBOSE=0 FAKE=0
 
-if [[ -n "$USERINSTANCE" ]]; then
-	KRB5CCNAME="${KRB5BASECCDIR}/${KRB5USER:-"$REMOTEUSER"}/${USERINSTANCE:-"${KRB5USER:-"$REMOTEUSER"}"}"
-	export KRB5CCNAME
-#	KRB5CCOPT="-c ${KRB5CCNAME}"
-	[[ -n "$KRB5REALM" ]] && DBG "Using Kerberos5 cache in '${KRB5CCNAME}'"
-fi
+declare RemoteUser="$USER" RemoteHost='' RemoteDomain=''
+declare RemoteHostPrefix='' RemoteHostSuffix=''
+declare -a AutoHost
+declare -i NoDefaultSSHoptions=0
 
-# Kerberos ticket authomatic support
-if ! isFlagSet NOTICKET && [[ -n "$KRB5REALM" ]]; then
-	$kinit -R >& /dev/null
-	res=$?
-	if [[ $res != 0 ]]; then
-		[[ -z "$KRB5FULLUSER" ]] && KRB5FULLUSER="${KRB5USER:-"$REMOTEUSERKEY"}@${KRB5REALM}"
-		[[ -n "$KRB5LIFETIME" ]] && KRB5OPTS="${KRB5OPTS} -l${KRB5LIFETIME} -r${KRB5RENEWTIME}"
-		[[ -n "$KRB5RENEWTIME" ]] && KRB5OPTS="${KRB5OPTS} -r${KRB5RENEWTIME}"
-		isFlagSet NAT && KRB5OPTS="${KRB5OPTS} -n"
-		echo "Getting a new Kerberos5 ticket: prepare your password."
-		$FAKECMD $kinit $KRB5OPTS "$KRB5FULLUSER"
-		res=$?
+declare KerberosRealm='' KerberosUser="" KerberosInstance=''
+declare KerberosTicketLifetime='' KerberosTicketRenewTime=''
+declare -i KerberosNewTicket=1 KerberosRenewTicket=1 isNAT=0
+
+declare -a Sources Destinations
+declare -i nSources=0
+declare CurrentDestination='' DefaultDestination=''
+declare -a ssh_options
+
+declare -i iParam=0 nParams=$#
+while [[ $iParam -lt $nParams ]]; do
+	let ++iParam
+	Param="${!iParam}"
+	
+	DBGN 2 "Parsing parameter: '${Param}'"
+	
+	if isFlagUnset NoMoreOptions ; then
+		
+		# is this the marker of no more options?
+		if [[ "$Param" == '--' ]] || [[ "$Param" == '-' ]]; then
+			NoMoreOptions=1
+			continue
+		fi
+		
+		# if mode has not been set yet, give it a try
+		if [[ -z "$MODE" ]]; then
+			case "$Param" in
+				( '--help' | '-h' | '-?' | 'help' )  SetOperationMode 'help' ;;
+				( '--version' | '-V' | 'version' )   SetOperationMode 'version' ;;
+				( '--ssh' | 'ssh' )                  SetOperationMode 'ssh' ;;
+				( '--write' | '-w' | 'write' | 'w' ) SetOperationMode 'write' ;;
+				( '--read' | '-r' | 'read' | 'r' )   SetOperationMode 'read' ;;
+			esac
+			[[ -n "$MODE" ]] && continue
+		fi
+		
+		# special option (includes a mode set):
+		case "$Param" in
+			( '--help='* )
+				SetOperationMode 'help'
+				HelpTopics=( "${HelpTopics[@]}" "${Param#--*=}" )
+				continue
+				;;
+		esac
+		
+		# parse the common options
+		parse_options_common "$iParam" "$@"
+		HandledParameters=$?
+		if [[ "$HandledParameters" -ge 1 ]]; then
+			# we have handled some parameters, let's skip them
+			let iParam+=${HandledParameters}-1
+			continue
+		fi
 	fi
-	if [[ $res != 0 ]]; then
-		ERROR "Couldn't get a new Kerberos5 ticket. Hope there is a valid, existing one."
+	
+	# mode-specific options (valid only if a mode is specified)
+	if [[ -n "$MODE" ]]; then
+		parse_options_${MODE} "$iParam" "$@"
+		HandledParameters=$?
+		if [[ "$HandledParameters" -ge 1 ]]; then
+			# we have handled some parameters, let's skip them
+			let iParam+=${HandledParameters}-1
+			continue
+		fi
 	fi
-fi
+	
+done
 
-if isFlagSet USECOMPACTHOSTKEY ; then
-	MyRemotePath="$REMOTEPATH"
-else
-	MyRemotePath="${REMOTEPATH/#${REMOTEUSER}@/}"
-fi
+isFlagSet NoDefaultSSHoptions || ssh_options=( "${ssh_default_options[@]}" "${ssh_options[@]}" )
+nSources="${#Sources[@]}"
 
-MySSH="$(SubstVars "$SSH")"
-MySSHOPT="$(SubstVars "$SSHOPT")"
-MySCP="$(SubstVars "$SCP")"
-MySCPOPT="$(SubstVars "$SCPOPT")"
+: ${MODE:='ssh'}
+
+isFlagSet QUIET && VERBOSE=0
+: ${KerberosUser:="$RemoteUser"}
+
+
+
+################################################################################
+### Simple operational modes
+###
+
 case "$MODE" in
-	( "shell" | "sh" )
-		CMDDBG $MySSH $MySSHOPT "$@" "$MyRemotePath"
-		$FAKECMD $MySSH $MySSHOPT "$@" "$MyRemotePath"
-		;;
-	( "exec" )
-		CMDDBG $MySSH $MySSHOPT "$MyRemotePath" "$@"
-		$FAKECMD $MySSH $MySSHOPT "$MyRemotePath" "$@"
-		;;
-	( "read" )
-		declare -i NParams="$#"
-		declare -i nSources=$(($NParams - 1))
-		if isFlagUnset REPLICATE && [[ "$NParams" -ge 2 ]]; then
-			DESTDIR="${!NParams}"
+	( 'help' )
+		if [[ "${#HelpTopics[*]}" == 0 ]]; then
+			help
 		else
-			REPLICATE=1
-			let ++nSources
+			for HelpTopic in "${HelpTopics[@]}" ; do
+				help_${HelpTopic}
+				LASTFATAL "Error while printing help on topic '${HelpTopic}'"
+			done
 		fi
-		DBG "${nSources} source files${REPLICATE:+" (replication mode: ${REPLICATE})"}."
-		declare -a Sources
-		for (( i = 1 ; i <= $nSources ; ++i )); do
-			Sources[$i]="${MyRemotePath}:${!i}"
-		done
-		[[ "${#Sources[*]}" == 0 ]] && FATAL 1 "must specify remote source files"
-		if isFlagSet REPLICATE ; then
-			DESTDIR="$(dirname "${Sources[0]}")"
-			if [[ "${DESTDIR:0:1}" != "/" ]]; then # complete the relative path
-				if ! isFlagSet RELATIVE ; then
-					DESTDIR="${HOME}/${DESTDIR}"
-				fi
-			fi
-		else
-			[[ -z "$DESTDIR" ]] && FATAL 1 "must specify local destination directory"
-		fi
-		
-		isFlagSet FAKE || $mkdir "$DESTDIR" >& /dev/null
-		DBG $MySCP $MySCPOPT "${Sources[@]}" "$DESTDIR"
-		$FAKECMD $MySCP $MySCPOPT "${Sources[@]}" "$DESTDIR"
-		[[ $? != 0 ]] && $rmdir "$DESTDIR" >& /dev/null
-		
+		exit 0
 		;;
-	( "write" )
-		declare -i NParams="$#"
-		declare -i nSources=$(($NParams - 1))
-		if isFlagUnset REPLICATE && [[ "$NParams" -ge 2 ]]; then
-			DESTDIR="${!NParams}"
+	( 'version' )
+		RealName="$(basename "$(readlink -f "$0")")"
+		if [[ "$RealName" == "${SCRIPTNAME}" ]]; then
+			echo "${SCRIPTNAME} version ${SCRIPTVERSION}"
 		else
-			REPLICATE=1
-			let ++nSources
-			DBG "Replicating directory structure on remote destination."
+			echo "${SCRIPTNAME} (alias of ${RealName}) version ${SCRIPTVERSION}"
 		fi
-		declare -a Sources
-		for (( i = 1 ; i <= $nSources ; ++i )); do
-			Sources[$i]="${!i}"
-		done
-		[[ "${#Sources[*]}" == 0 ]] && FATAL 1 "must specify local source files"
-		if isFlagSet REPLICATE ; then
-			DESTDIR="$(dirname "${Sources[0]}")"
-			if [[ "${DESTDIR:0:1}" != "/" ]]; then # complete the relative path
-				if isFlagSet RELATIVE ; then
-					[[ "$CWD" != "$HOME" ]] && DESTDIR="${CWD/#"$HOME"\//}/${DESTDIR}"
-				fi
-			fi
-			[[ "$DESTDIR" == "." ]] && DESTDIR=""
-			if [[ "${#Sources[*]}" -gt 1 ]]; then
-				ERROR "Beware: ALL files will be copied in the directory of the FIRST source ('${DESTDIR}')"
-			fi
-		else
-			[[ -z "$DESTDIR" ]] && FATAL 1 "must specify local destination directory"
-		fi
-		DBG $MySCP $MySCPOPT "${Sources[@]}" "${MyRemotePath}:${DESTDIR}"
-		$FAKECMD $MySCP $MySCPOPT "${Sources[@]}" "${MyRemotePath}:${DESTDIR}"
-		;;
-	( * )
-		FATAL 1 "unsupported mode '$MODE'."
+		exit 0
 		;;
 esac
 
+
+################################################################################
+### Arrange SSH options
+###
+
+if [[ -z "$RemoteHost" ]] && [[ ${#AutoHost[@]} -gt 0 ]] ; then
+	RemoteHost="$SCRIPTNAME"
+	DBG "Using '${RemoteHost}' as host name (unless in ${AutoHost[@]})."
+	for ScriptName in "${AutoHost[@]}" ; do
+		[[ "$RemoteHost" == "$ScriptName" ]] || continue
+		DBG "Host name '${RemoteHost}' is actually a script name."
+		unset RemoteHost
+		break
+	done
+fi
+
+[[ -n "$RemoteHost" ]] || FATAL 1 "Remote host specification is required."
+
+
+# RemoteHostName is the simple host name (no domain/DNS name)
+declare RemoteHostName="${RemoteHost%%.*}"
+
+DBGN 2 "Detected remote host: '${RemoteHost}'"
+DBGN 3 "Base host name:       '${RemoteHostName}'"
+DBGN 3 "Domain name:          '${RemoteDomain}'"
+
+# RemoteDomainFromHostName is the rest of the host specification (no trailing . though)
+declare RemoteDomainFromHostName="${RemoteHost#${RemoteHostName}.}"
+[[ "$RemoteDomainFromHostName" == "$RemoteHost" ]] && RemoteDomainFromHostName=''
+DBGN 3 "Embedded domain name: '${RemoteDomainFromHostName}'"
+
+# rework the host name
+[[ "${RemoteHostName#${RemoteHostPrefix}}" == "$RemoteHostName" ]] && RemoteHostName="${RemoteHostPrefix}${RemoteHostName}"
+[[ "${RemoteHostName%${RemoteHostSuffix}}" == "$RemoteHostName" ]] && RemoteHostName+="${RemoteHostSuffix}"
+
+DBGN 2 "Complete host name:   '${RemoteHostName}'"
+
+# RemotePath is the fully qualified host + domain name
+declare RemotePath="${RemoteHostName}${RemoteDomainFromHostName:+.${RemoteDomainFromHostName}}"
+[[ -n "$RemoteDomain" ]] && [[ -z "$RemoteDomainFromHostName" ]] && RemotePath+=".${RemoteDomain}"
+
+DBGN 3 "Complete host path:   '${RemotePath}'"
+
+declare RemoteFullPath="${RemoteUser}@${RemotePath}"
+
+DBGN 2 "Complete user path:   '${RemoteFullPath}'"
+
+
+
+################################################################################
+### Get a Kerberos ticket as needed
+###
+
+if [[ -n "$KerberosRealm" ]]; then
+	
+	declare -i GotKerberosTicket=0
+	
+	KerberosUserInstance="${KerberosUser}${KerberosInstance:+/${KerberosInstance}}"
+	KerberosFullUser="${KerberosUserInstance}@${KerberosRealm}"
+	
+	# first try to renew an existing ticket
+	if isFlagUnset GotKerberosTicket && isFlagSet KerberosRenewTicket ; then
+		Execute $kinit -R "$KerberosFullUser" >& /dev/null && GotKerberosTicket=1
+	fi
+	
+	if isFlagUnset GotKerberosTicket && isFlagSet KerberosNewTicket ; then
+		
+		declare -a KerberosOptions=(
+			${KerberosTicketLifetime:+"-l${KerberosTicketLifetime}"}
+			${KerberosTicketRenewTime:+"-r${KerberosTicketRenewTime}"}
+		)
+		isFlagSet isNAT && KerberosOptions=( "${KerberosOptions[@]}" '-n' )
+		
+		echo "Getting a new Kerberos5 ticket: prepare your password."
+		Execute $kinit "${KerberosOptions[@]}" "$KerberosFullUser" && GotKerberosTicket=1
+	fi
+	
+	if isFlagUnset GotKerberosTicket ; then
+		ERROR "Couldn't get a new Kerberos5 ticket. Hope there is a valid, existing one."
+	fi
+	
+fi
+
+
+################################################################################
+### SSH communication modes
+###
+declare -i ExitCode=0
+case "$MODE" in
+	#############################################################################
+	( 'ssh' )
+		Execute $ssh -l "$RemoteUser" "${ssh_options[@]}" "$RemotePath"
+		ExitCode=$?
+		;;
+	
+	#############################################################################
+	( 'read' | 'write' )
+		# if no destination was ever explicitly specified, assume that the latest
+		# parameter is the destination for all the sources;
+		# if there is only one source, then assume the destination is the default
+		# directory SSH lands to
+		if [[ -z "$DefaultDestination" ]]; then
+			if [[ $nSources -gt 1 ]]; then
+				let --nSources
+				DefaultDestination="${Sources[$nSources]}"
+				unset Sources[$nSources]
+				unset Destinations[$nSources]
+			else
+				DefaultDestination='.'
+			fi
+		fi
+		
+		[[ $nSources == 0 ]] && FATAL 1 "In ${MODE} mode, at least one source must be specified!"
+		
+		declare -i nErrors=0
+		declare -i iSource=0
+		while [[ $iSource -lt $nSources ]] ; do
+			# accumulate sources to be copied into the same destination
+			declare -a TheseSources=( )
+			
+			declare ThisDestination="${Destinations[iSource]:-${DefaultDestination}}"
+			while [[ "${Destinations[iSource]:-${DefaultDestination}}" == "$ThisDestination" ]]; do
+				TheseSources=( "${TheseSources[@]}" "${Sources[iSource]}" )
+				
+				let ++iSource
+				[[ $iSource -ge $nSources ]] && break
+			done
+			
+			# -r: recursive directory copy; -p: preserve attributes
+			if [[ "$MODE" == 'write' ]]; then
+				FullDestination="${RemoteFullPath}:${ThisDestination}"
+				Execute $scp -pr "${TheseSources[@]}" "$FullDestination"
+			else
+				declare -a FullSources=( )
+				for Source in "${TheseSources[@]}" ; do
+					FullSources=( "${FullSources[@]}" "${RemoteFullPath}:${Source}" )
+				done
+				if [[ "${#FullSources[@]}" -gt 1 ]] || [[ "${ThisDestination: -1}" == '/' ]]; then
+					Execute $mkdir -p "$ThisDestination"
+				fi
+				Execute $scp -pr "${FullSources[@]}" "$ThisDestination"
+			fi
+			ExitCode=$?
+			if [[ $ExitCode != 0 ]]; then
+				ERROR "Copy to '${FullDestination}' failed!"
+				let ++nErrors
+			fi
+		done
+		exit $nErrors
+		;;
+	#############################################################################
+	( * ) FATAL 1 "Unknown SSH operation '${MODE}'." ;;
+esac
+
+
+exit $ExitCode
