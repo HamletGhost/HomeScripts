@@ -1,4 +1,4 @@
 #!/bin/sh
 
 # sourcing is important to have the script name propagated
-source sshell --autohost='fnal' --domain='fnal.gov' --user='petrillo' --krbrealm='FNAL.GOV' "$@"
+source sshell --autohost='fnal' --domain='fnal.gov' --user='petrillo' --k5realm='FNAL.GOV' "$@"

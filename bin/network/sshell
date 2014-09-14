@@ -95,10 +95,10 @@ function help_common() {
 	--noticket
 	    do not attempt to get a Kerberos ticket at all (equivalent to
 	    options --nonew and --norenew together)
-	--krblifetime=LIFETIME
+	--k5lifetime=LIFETIME
 	    when requesting a new ticket, ask it to last for lifetime (it may still
 	    be renewed beyond it)
-	--krbrenewtime=RENEWTIME
+	--k5enewtime=RENEWTIME
 	    when requesting a new ticket, ask to allow it to be renewed up to
 	    RENEWTIME time (in total)
 	EOH
@@ -351,8 +351,8 @@ function parse_options_common() {
 			( "--nonew" )         KerberosNewTicket=0 ;;
 			( "--norenew" )       KerberosRenewTicket=0 ;;
 			( "--noticket" )      KerberosNewTicket=0 ; KerberosRenewTicket=0 ;;
-			( "--krblifetime=" )  KerberosTicketLifetime="${Param#--*=}" ;;
-			( "--krbrenewtime=" ) KerberosTicketRenewTime="${Param#--*=}" ;;
+			( "--k5lifetime=" )  KerberosTicketLifetime="${Param#--*=}" ;;
+			( "--k5renewtime=" ) KerberosTicketRenewTime="${Param#--*=}" ;;
 			( "--nat=" )          isNAT=1 ;;
 			( * )
 				return $(( NDigested - 1 ))
@@ -621,6 +621,8 @@ DBGN 2 "Complete user path:   '${RemoteFullPath}'"
 
 if [[ -n "$KerberosRealm" ]]; then
 	
+	DBGN 1 "Preparing for Kerberos authentication"
+	
 	declare -i GotKerberosTicket=0
 	
 	KerberosUserInstance="${KerberosUser}${KerberosInstance:+/${KerberosInstance}}"
@@ -628,11 +630,15 @@ if [[ -n "$KerberosRealm" ]]; then
 	
 	# first try to renew an existing ticket
 	if isFlagUnset GotKerberosTicket && isFlagSet KerberosRenewTicket ; then
+		DBGN 2 " - attempt to renew any existing ticket"
 		Execute $kinit -R "$KerberosFullUser" >& /dev/null && GotKerberosTicket=1
+	else
+		DBGN 2 " (no attempt to renew any existing ticket)"
 	fi
 	
 	if isFlagUnset GotKerberosTicket && isFlagSet KerberosNewTicket ; then
 		
+		DBGN 2 " - attempt to obtain a new ticket"
 		declare -a KerberosOptions=(
 			${KerberosTicketLifetime:+"-l${KerberosTicketLifetime}"}
 			${KerberosTicketRenewTime:+"-r${KerberosTicketRenewTime}"}
@@ -641,12 +647,16 @@ if [[ -n "$KerberosRealm" ]]; then
 		
 		echo "Getting a new Kerberos5 ticket: prepare your password."
 		Execute $kinit "${KerberosOptions[@]}" "$KerberosFullUser" && GotKerberosTicket=1
+	else
+		DBGN 2 " (no attempt to obtain a new ticket)"
 	fi
 	
 	if isFlagUnset GotKerberosTicket ; then
 		ERROR "Couldn't get a new Kerberos5 ticket. Hope there is a valid, existing one."
 	fi
 	
+else
+	DBGN 1 "No Kerberos authentication was requested."
 fi
 
 
