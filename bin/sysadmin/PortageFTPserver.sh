@@ -7,6 +7,9 @@ SCRIPTNAME="$(basename "$0")"
 
 PORTAGEDIR="/usr/portage"
 PORTAGEDISTFILE="${PORTAGEDIR}/distfiles"
+FTPDISTFILE="/home/ftp/repository/gentoo-portage/distfiles"
+
+FTPService='pure-ftpd'
 
 function STDERR() {
 	echo "$*" >&2
@@ -49,8 +52,16 @@ function Start() {
 	if [[ -r "${PORTAGEDISTFILE%%/}/Unmounted." ]]; then
 		mount "$PORTAGEDISTFILE"
 		LASTFATAL "Can't mount portage distfile directory ('${PORTAGEDISTFILE}')."
+		echo "Portage distfiles directory mounted in the system."
 	fi
 
+	# mount it into the FTP directory
+	if [[ -r "${FTPDISTFILE%%/}/Unmounted." ]]; then
+		mount "$FTPDISTFILE"
+		LASTFATAL "Can't mount portage distfile directory ('${FTPDISTFILE}') into FTP area."
+		echo "Portage distfiles directory mounted for FTP access."
+	fi
+	
 	# start the rsync server
 	if ! rc-service rsyncd status >& /dev/null ; then
 		rc-service rsyncd start
@@ -65,8 +76,8 @@ function Start() {
 
 
 	# start the FTP server 
-	if ! rc-service proftpd status >& /dev/null ; then
-		rc-service proftpd start
+	if ! rc-service "$FTPService" status >& /dev/null ; then
+		rc-service "$FTPService" start
 		LASTFATAL "Can't start FTP server."
 	fi
 	
@@ -78,8 +89,8 @@ function Stop() {
 	local res
 
 	# stop the FTP server
-	if rc-service proftpd status >& /dev/null ; then
-		rc-service proftpd stop
+	if rc-service "$FTPService" status >& /dev/null ; then
+		rc-service "$FTPService" stop
 		LASTERROR "Can't stop FTP server."
 	fi
 
@@ -87,6 +98,13 @@ function Stop() {
 	if rc-service rsyncd status >& /dev/null ; then
 		rc-service rsyncd stop
 		LASTERROR "Can't stop rsync server."
+	fi
+
+	# umount FTP directory
+	if [[ ! -r "${FTPDISTFILE%%/}/Unmounted." ]]; then
+		umount "$FTPDISTFILE"
+		LASTERROR "Can't unmount FTP area ('${FTPDISTFILE}')."
+		echo "Portage distfiles directory not available for FTP access anymore."
 	fi
 
 	return 0

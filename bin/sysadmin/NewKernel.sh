@@ -132,7 +132,7 @@ function MakeInitRAMFS() {
 	[[ -r "$LatestIWLfw" ]] && echo "Including: '${LatestIWLfw}'"
 
 	# create the thing
-	local -a Cmd=( $DRACUT --force --hostonly ${LatestIWLfw:+--install "$LatestIWLfw"} "$INITRAMFSPATH" $UNAMER "$@" )
+	local -a Cmd=( $DRACUT --force --lvmconf --hostonly ${LatestIWLfw:+--install "$LatestIWLfw"} "$INITRAMFSPATH" $UNAMER "$@" )
 	echo "${Cmd[@]}"
 	"${Cmd[@]}" && echo "InitRAMFS image created at '${INITRAMFSPATH}'"
 } # MakeInitRAMFS

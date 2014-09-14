@@ -11,7 +11,7 @@ SCRIPTDIR="$(dirname "$0")"
 
 : ${ExtractConfigSymbols:="KernelConfigSymbols.sh"}
 
-: ${WSIZE:="150"}
+: ${WSIZE:="${COLUMNS:-150}"}
 
 NewConfig="${1:-.config}"
 OldConfig="${2:-"/usr/src/linux"}"
@@ -25,7 +25,7 @@ if cmp -q "$OldConfig" "$NewConfig" >& /dev/null ; then
 fi
 
 # first try to see if the files are the same:
-diff -b <( sed -e '1,+4d' "$OldConfig") <( sed -e '1,+4d' "$NewConfig" ) >& /dev/null
+diff -q -b <( sed -e '1,+4d' "$OldConfig") <( sed -e '1,+4d' "$NewConfig" ) >& /dev/null
 if [[ $? == 0 ]]; then
 	echo "Config files '${OldConfig}' (old) and '${NewConfig}' (new) completely match."
 	exit 0
