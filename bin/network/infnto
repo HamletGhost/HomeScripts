@@ -1,0 +1,4 @@
+#!/bin/sh
+
+# sourcing is important to have the script name propagated
+source sshell --autohost='infnto' --domain='to.infn.it' --user='petrillo' "$@"

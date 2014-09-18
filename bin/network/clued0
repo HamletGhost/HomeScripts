@@ -1,24 +1,4 @@
 #!/bin/sh
 
-: ${DEFCLUED0HOST:="nowhere"}
-
-function isFlagSet() {
-	local VARNAME="$1"
-	[[ -n "${!VARNAME}" ]] && [[ "${!VARNAME}" != 0 ]]
-}
-
-if [[ -z "$CLUED0HOSTNAME" ]]; then
-	if [[ -n "$1" ]]; then
-		CLUED0HOST="$1"
-		shift
-	else
-		CLUED0HOST="$(basename "$0")"
-		[[ "$CLUED0HOST" == "clued0" ]] && CLUED0HOST="$DEFCLUED0HOST"
-	fi
-else
-	CLUED0HOST="$CLUED0HOSTNAME"
-fi
-
-[[ "${CLUED0HOST/-}" == "$CLUED0HOST" ]] && CLUED0HOST="${CLUED0HOST}-clued0"
-
-USERINSTANCE="$USERINSTANCE" REMOTEHOST="$CLUED0HOST" fnal "$@"
+# sourcing is important to have the script name propagated
+source fnal --autohost='clued0' --hostsuffix='-clued0' "$@"

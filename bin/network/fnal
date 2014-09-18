@@ -1,19 +1,4 @@
 #!/bin/sh
 
-: ${KRB5REALM:="FNAL.GOV"}
-: ${REMOTEUSER:="petrillo"}
-
-function isFlagSet() {
-	local VARNAME="$1"
-	[[ -n "${!VARNAME}" ]] && [[ "${!VARNAME}" != 0 ]]
-}
-
-FNALGOV="fnal.gov"
-
-FNALDOMAIN=".${FNALGOV}"
-isFlagSet DHCP && FNALDOMAIN=".dhcp${FNALDOMAIN}"
-
-[[ -z "$REMOTEHOST" ]] && REMOTEHOST="$(basename "${0%.*}")"
-[[ "${REMOTEHOST/%.${FNALGOV}}" != "$REMOTEHOST" ]] && FNALDOMAIN=
-
-KRB5REALM="$KRB5REALM" REMOTEUSER="$REMOTEUSER" REMOTEHOST="$REMOTEHOST${FNALDOMAIN}" sshell "$@"
+# sourcing is important to have the script name propagated
+source sshell --autohost='fnal' --domain='fnal.gov' --user='petrillo' --k5realm='FNAL.GOV' "$@"

@@ -1,4 +1,4 @@
 #!/bin/sh
 
-scp -r "$@" merlino.to.infn.it:public
+source merlino --write --dest=public "$@"
 

@@ -1,0 +1,14 @@
+#!/bin/sh
+
+function CMD() {
+	echo "$@"
+	"$@"
+}
+
+if [[ -n "$1" ]]; then
+	OPT="$1"
+	[[ "${OPT:0:1}" != '-' ]] && OPT="-$OPT"
+fi
+
+CMD emerge -DuN $OPT world
+

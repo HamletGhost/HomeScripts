@@ -1,4 +1,6 @@
-#!/bin/sh
+#!/bin/bash
 
-CLUED0HOSTNAME="${CLUED0HOSTNAME:="$(basename "$0")"}" clued0 "$@"
+# replace the first parameter to prepend --host= on it, then call clued0
+set -- --host="$1" "${@:2}"
+source clued0 "$@"
 

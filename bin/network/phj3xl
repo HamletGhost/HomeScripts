@@ -1,4 +1,0 @@
-#!/bin/sh
-
-REMOTEHOST="phj3xl" REMOTEDOMAIN="ph.unito.it" sshell "$@"
-

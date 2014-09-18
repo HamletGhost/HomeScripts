@@ -61,12 +61,14 @@ for Arg in "$@" ; do
 		case "$Arg" in
 			( '@lib' ) VarName='LD_LIBRARY_PATH' ;;
 			( '@bin' ) VarName='PATH' ;;
+			( '@man' ) VarName='MANPATH' ;;
 		esac
 		Value="${!VarName}"
 	else
 		Value="$Arg"
 	fi
-#	echo "${VarName}"
+	
+	[[ -z "$Value" ]] && continue
 	tr "$SEP" "\n" <<< "$Value"
 done
 

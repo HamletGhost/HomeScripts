@@ -1,0 +1,4 @@
+# Sets up CUPS daemon
+
+# just call another script...
+StartCUPS.sh
