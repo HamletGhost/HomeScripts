@@ -1,14 +1,48 @@
-#!/bin/sh
+#!/bin/bash
+#
+# Writes a message highlighted in a full line
+#
 
 : ${ATOM:=" - *"}
-: ${LENGTH:=80}
+: ${LATOM:="$ATOM"}
+: ${RATOM:="$ATOM"}
+: ${LENGTH:=${COLUMNS:-80}}
 
-ATOMLENGTH=${#ATOM}
-NATOMS=$((LENGTH / ATOMLENGTH))
+HighlightCode="\e[0;31m" # dark red
+TitleHighlightCode="\e[1;31m" # bright red
+ResetCode="\e[0m" # reset
 
-[ -n "$1" ] && LENGTH="$1"
+declare Message="$1"
+declare -i MessageLength="${#Message}"
 
-echo -ne "\e[31m"
-for (( i = 0; i < $NATOMS ; ++i )); do echo -n "$ATOM" ; done
-echo -e "\e[0m"
+declare -i Frame
+if [[ -n "$Message" ]]; then
+	Frame=$((LENGTH - MessageLength - 2))
+else
+	Frame=$LENGTH
+fi
+
+declare -i LeftAtomLength=${#LATOM}
+declare -i RightAtomLength=${#RATOM}
+
+if [[ $LeftAtomLength == $RightAtomLength ]]; then
+	declare -i AtomLength=$LeftAtomLength
+	declare -i NAtoms="$((Frame / $AtomLength))"
+	
+	declare -i NLeftAtoms=$((NAtoms / 2))
+	declare -i NRightAtoms=$((NAtoms - NLeftAtoms))
+	
+else
+	declare -i LeftFrame=$((Frame / 2))
+	declare -i RightFrame=$((Frame - LeftFrame))
+
+	declare -i NLeftAtoms=$((LeftFrame / $LeftAtomLength))
+	declare -i NRightAtoms=$((RightFrame / $RightAtomLength))
+fi
+
+echo -ne "$HighlightCode"
+for (( i = 0; i < $NLeftAtoms ; ++i )); do echo -n "$ATOM" ; done
+[[ -n "$Message" ]] && echo -en "${TitleHighlightCode} ${Message} ${HighlightCode}"
+for (( i = 0; i < $NRightAtoms ; ++i )); do echo -n "$ATOM" ; done
+echo -e "$ResetCode"
 
