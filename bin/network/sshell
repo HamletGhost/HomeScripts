@@ -1,5 +1,9 @@
 #!/bin/bash
 #
+# Run with --help for help.
+# Host name can be retrieved from the name of the script (also in case the
+# script is actually a symbolic link).
+#
 # Script versions:
 # < 1.0: developement versions
 # 1.0 (petrillo@fnal.gov, 20141004)
@@ -102,12 +106,14 @@ function help_common() {
 	--noticket
 	    do not attempt to get a Kerberos ticket at all (equivalent to
 	    options --nonew and --norenew together)
-	--k5lifetime=LIFETIME
+	--k5lifetime=LIFETIME ['${KerberosTicketLifetime}']
 	    when requesting a new ticket, ask it to last for lifetime (it may still
 	    be renewed beyond it)
-	--k5enewtime=RENEWTIME
+	--k5enewtime=RENEWTIME ['${KerberosTicketRenewTime}']
 	    when requesting a new ticket, ask to allow it to be renewed up to
 	    RENEWTIME time (in total)
+	--notrenewable
+	    requested Kerberos ticket is not renewable
 	EOH
 } # help_common()
 
@@ -292,19 +298,97 @@ function SetOperationMode() {
 } # SetOperationMode()
 
 
+function Max() {
+	[[ $# -gt 0 ]] || return 1
+	local -i Max=$1
+	local -i iItem
+	for (( iItem = 2 ; iItem <= $# ; ++iItem )); do
+		local Item="${!iItem}"
+		[[ -z "$Item" ]] && continue
+		[[ "$Item" -gt "$Max" ]] && Max="$Item"
+	done
+	echo "$Max"
+	return 0
+} # Max()
+
+
+function RedirectOutput() {
+	# Redirects the specified file descriptor to a specified file, and prints
+	# the previous one.
+	local -i FileDescriptor="$1"
+	local RedirectTo="$2"
+	[[ -n "$RedirectTo" ]] || return 1
+	
+	local ProcHandle="/proc/$$/fd/${FileDescriptor}"
+	local OldOutput
+	[[ -h "$ProcHandle" ]] && OldOutput="$(readlink "$ProcHandle")"
+	
+	local res=0
+	exec "${FileDescriptor}>" "$RedirectTo"
+	res=$?
+	[[ $res == 0 ]] || return $res
+	
+	echo "$OldOutput"
+	return 0
+} # RedirectOutput()
+
+
 function Execute() {
+	local StdIn StdOut StdErr
+	while [[ "${1:0:1}" == '-' ]]; do
+		case "$1" in
+			( '--muteoutput' )
+				StdOut="/dev/null"
+				;;
+			( '--muteerror' )
+				StdErr="/dev/null"
+				;;
+			( '--mute' )
+				StdOut="/dev/null"
+				StdErr="/dev/null"
+				;;
+			( '--' )
+				shift
+				break ;;
+			( * )
+				break ;;
+		esac
+		shift
+	done
+	
 	local -a Command=( "$@" )
 	local -i ExitCode=0
 	
 	# print the command being run
 	if isFlagSet FAKE || isFlagSet VERBOSE || isDebugging ; then
-		echo "${Command[@]}"
+		echo "CMD: ${Command[@]} ${StdIn:+"0< '${StdIn}'"} ${StdOut:+"1> '${StdOut}'"} ${StdErr:+"2> '${StdErr}'"}"
 	fi
 	
 	# run the command
 	if isFlagUnset FAKE ; then
+		# establish redirections
+		local OldStdIn OldStdOut OldStdErr
+		if [[ -n "$StdIn" ]]; then
+			OldStdIn="$(readlink "/proc/$$/fd/0")"
+			exec 0< "$StdIn"
+		fi
+		if [[ -n "$StdOut" ]]; then
+			OldStdOut="$(readlink "/proc/$$/fd/1")"
+			exec 1> "$StdOut"
+		fi
+		if [[ -n "$StdErr" ]]; then
+			OldStdErr="$(readlink "/proc/$$/fd/2")"
+			exec 2> "$StdErr"
+		fi
+		
 		"${Command[@]}"
 		ExitCode=$?
+		
+		# reset redirections
+		[[ -n "$OldStdErr" ]] && exec 2> "$OldStdErr"
+		[[ -n "$OldStdOut" ]] && exec 1> "$OldStdOut"
+		[[ -n "$OldStdIn" ]] && exec 0< "$OldStdIn"
+		
 	fi
 	
 	return $ExitCode
@@ -359,8 +443,9 @@ function parse_options_common() {
 			( "--nonew" )         KerberosNewTicket=0 ;;
 			( "--norenew" )       KerberosRenewTicket=0 ;;
 			( "--noticket" )      KerberosNewTicket=0 ; KerberosRenewTicket=0 ;;
-			( "--k5lifetime=" )  KerberosTicketLifetime="${Param#--*=}" ;;
-			( "--k5renewtime=" ) KerberosTicketRenewTime="${Param#--*=}" ;;
+			( "--k5lifetime=" )   KerberosTicketLifetime="${Param#--*=}" ;;
+			( "--k5renewtime=" )  KerberosTicketRenewTime="${Param#--*=}" ;;
+			( "--notrenewable" )  KerberosTicketRenewTime='' ;;
 			( "--nat=" )          isNAT=1 ;;
 			( * )
 				return $(( NDigested - 1 ))
@@ -470,7 +555,7 @@ declare -a AutoHost
 declare -i NoDefaultSSHoptions=0
 
 declare KerberosRealm='' KerberosUser="" KerberosInstance=''
-declare KerberosTicketLifetime='' KerberosTicketRenewTime=''
+declare KerberosTicketLifetime='1d' KerberosTicketRenewTime='7d'
 declare -i KerberosNewTicket=1 KerberosRenewTicket=1 isNAT=0
 
 declare -a Sources Destinations
@@ -647,7 +732,7 @@ if [[ -n "$KerberosRealm" ]]; then
 	# first try to renew an existing ticket
 	if isFlagUnset GotKerberosTicket && isFlagSet KerberosRenewTicket ; then
 		DBGN 2 " - attempt to renew any existing ticket"
-		Execute $kinit -R "$KerberosFullUser" >& /dev/null && GotKerberosTicket=1
+		Execute --mute $kinit -R "$KerberosFullUser" && GotKerberosTicket=1
 	else
 		DBGN 2 " (no attempt to renew any existing ticket)"
 	fi
