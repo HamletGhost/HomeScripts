@@ -6,8 +6,11 @@
 #
 # Script versions:
 # < 1.0: developement versions
-# 1.0: tested on a few cases
-# 1.1 (20141114, petrillo@fnal.gov):
+# 1.0 (petrillo@fnal.gov, 20141004)
+#     tested long enough to have it official
+# 1.1 (petrillo@fnal.gov, 20141004)
+#     added --asuser option
+# 1.2 (20141114, petrillo@fnal.gov):
 #   added exec option
 #
 
@@ -15,7 +18,7 @@ SCRIPTNAME="$(basename "$0")"
 SCRIPTDIR="$(dirname "$0")"
 CWD="$(pwd)"
 
-SCRIPTVERSION="1.1"
+SCRIPTVERSION="1.2"
 
 # program paths
 : ${kinit:="kinit"}
@@ -72,6 +75,9 @@ function help_common() {
 	SSH options:
 	--user=REMOTEUSER [${USER}]
 	    uses this user for remote log in
+	--asuser=ASREMOTEUSER [as REMOTEUSER]
+	    uses this user for remote log in, but still uses REMOTEUSER above in the
+	    authentication (see below)
 	--host=HOSTNAME
 	    the name of the SSH server to be contacted
 	--domain=DOMAIN
@@ -89,8 +95,8 @@ function help_common() {
 	
 	Kerberos authentication options (see \`man 1 kinit\` for details):
 	--k5realm=KRB5REALM
-	--k5user=KRB5USER [${USER}]
-	--k5instance=KRB5USERINSTANCE
+	--k5user=KRB5USER [as ASREMOTEUSER, or REMOTEUSER]
+	--k5instance=KRB5USERINSTANCE [as ASREMOTEUSER, or not used]
 	    if a Kerberos5 realm is specified, a ticket will be obtained from that
 	    realm, using KRB5USER as user (by default, the same as --remote option)
 	    and an optional instance KRB5USERINSTANCE (e.g. 'root' for administration
@@ -440,6 +446,7 @@ function parse_options_common() {
 			
 			# SSH options
 			( "--user="* )        RemoteUser="${Param#--*=}" ;;
+			( "--asuser="* )      AsRemoteUser="${Param#--*=}" ;;
 			( "--server="* | '--host='* )
 			                      RemoteHost="${Param#--*=}" ;;
 			( "--domain="* )      RemoteDomain="${Param#--*=}" ;;
@@ -748,10 +755,17 @@ declare RemotePath="${RemoteHostName}${RemoteDomainFromHostName:+.${RemoteDomain
 
 DBGN 3 "Complete host path:   '${RemotePath}'"
 
-declare RemoteFullPath="${RemoteUser}@${RemotePath}"
 
+
+if [[ -n "$AsRemoteUser" ]]; then
+	: ${KerberosInstance:="$AsRemoteUser"}
+	: ${KerberosUser:="$RemoteUser"}
+else
+	AsRemoteUser="$RemoteUser"
+fi
+
+declare RemoteFullPath="${AsRemoteUser}@${RemotePath}"
 DBGN 2 "Complete user path:   '${RemoteFullPath}'"
-
 
 
 ################################################################################
@@ -760,12 +774,13 @@ DBGN 2 "Complete user path:   '${RemoteFullPath}'"
 
 if [[ -n "$KerberosRealm" ]]; then
 	
-	DBGN 1 "Preparing for Kerberos authentication"
 	
 	declare -i GotKerberosTicket=0
 	
 	KerberosUserInstance="${KerberosUser}${KerberosInstance:+/${KerberosInstance}}"
 	KerberosFullUser="${KerberosUserInstance}@${KerberosRealm}"
+	
+	DBGN 1 "Preparing for Kerberos authentication as: '${KerberosFullUser}'"
 	
 	# first try to renew an existing ticket
 	if isFlagUnset GotKerberosTicket && isFlagSet KerberosRenewTicket ; then
@@ -806,7 +821,7 @@ declare -i ExitCode=0
 case "$MODE" in
 	#############################################################################
 	( 'ssh' )
-		Execute $ssh -l "$RemoteUser" "${ssh_options[@]}" "$RemotePath"
+		Execute $ssh -l "$AsRemoteUser" "${ssh_options[@]}" "$RemotePath"
 		ExitCode=$?
 		;;
 	
