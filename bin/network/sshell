@@ -7,13 +7,15 @@
 # Script versions:
 # < 1.0: developement versions
 # 1.0: tested on a few cases
+# 1.1 (20141114, petrillo@fnal.gov):
+#   added exec option
 #
 
 SCRIPTNAME="$(basename "$0")"
 SCRIPTDIR="$(dirname "$0")"
 CWD="$(pwd)"
 
-SCRIPTVERSION="1.0"
+SCRIPTVERSION="1.1"
 
 # program paths
 : ${kinit:="kinit"}
@@ -40,6 +42,8 @@ function help() {
 	    the current directory
 	--write , -w , write , w
 	    writes the specified files into a directory in the remote server
+	--exec
+	    executes a command on the remote host
 	--version , -V
 	    just prints the version numbre and exits
 	--help , -h , -?
@@ -207,6 +211,24 @@ function help_write() {
 	EOH
 	help_common
 } # help_write()
+
+
+function help_exec() {
+	cat <<-EOH
+	Mode: write
+	  ${SCRIPTNAME}  <--exec|-x|exec|x> [options]
+	    command [command arguments...]
+	
+	Executes the specified command in the remote shell, then returns.
+	
+	Execution mode options:
+	  no specific one
+	
+	In addition, the common options are accepted:
+	
+	EOH
+	help_common
+} # help_exec()
 
 
 function isFlagSet() {
@@ -469,6 +491,7 @@ function parse_options_help() {
 			( '--ssh' )                HelpTopics=( "${HelpTopics[@]}" 'ssh' ) ;;
 			( '--write' | '-w' | 'write' | 'w' ) HelpTopics=( "${HelpTopics[@]}" 'write' ) ;;
 			( '--read' | '-r' | 'read' | 'r' )   HelpTopics=( "${HelpTopics[@]}" 'read' ) ;;
+			( '--exec' | '-x' | 'exec' | 'x' ) HelpTopics=( "${HelpTopics[@]}" 'exec' ) ;;
 			
 			( * )
 				[[ "$MODE" == 'help' ]] && FATAL 1 "No help available on '${Param}'"
@@ -535,6 +558,36 @@ function parse_options_write() {
 
 function parse_options_read() { parse_options_write "$@" ; }
 
+function parse_options_exec() {
+	
+	local -i iParam=$(( $1 - 1 ))
+	shift
+	local -i NDigested=0
+	
+	while [[ $iParam -lt $# ]]; do
+		let ++iParam
+		local Param="${!iParam}"
+		
+		DBGN 3 "  is '${Param}' a ${MODE} option?"
+		
+		# by default, assume we swallow one parameter only
+		let ++NDigested
+		
+		if [[ "${Param:0:1}" == '-' ]] && isFlagUnset NoMoreOptions ; then
+			case "$Param" in
+				( * )
+					FATAL 1 "Invalid ${MODE} option '${Param}'."
+			esac
+		else
+			NoMoreOptions=1
+			Command=( "${Command[@]}" "$Param" )
+		fi
+		
+		break
+	done
+	return $NDigested
+} # parse_options_exec()
+
 
 declare MODE=""
 declare -i NoMoreOptions=0
@@ -550,7 +603,7 @@ declare KerberosRealm='' KerberosUser="" KerberosInstance=''
 declare KerberosTicketLifetime='1d' KerberosTicketRenewTime='7d'
 declare -i KerberosNewTicket=1 KerberosRenewTicket=1 isNAT=0
 
-declare -a Sources Destinations
+declare -a Sources Destinations Command
 declare -i nSources=0
 declare CurrentDestination='' DefaultDestination=''
 declare -a ssh_options
@@ -578,6 +631,7 @@ while [[ $iParam -lt $nParams ]]; do
 				( '--ssh' | 'ssh' )                  SetOperationMode 'ssh' ;;
 				( '--write' | '-w' | 'write' | 'w' ) SetOperationMode 'write' ;;
 				( '--read' | '-r' | 'read' | 'r' )   SetOperationMode 'read' ;;
+				( '--exec' | '-x' | 'exec' | 'x' )   SetOperationMode 'exec' ;;
 			esac
 			[[ -n "$MODE" ]] && continue
 		fi
@@ -811,6 +865,13 @@ case "$MODE" in
 		done
 		exit $nErrors
 		;;
+	
+	#############################################################################
+	( 'exec' )
+		Execute $ssh -l "$RemoteUser" "${ssh_options[@]}" "$RemotePath" "${Command[@]}"
+		ExitCode=$?
+		;;
+	
 	#############################################################################
 	( * ) FATAL 1 "Unknown SSH operation '${MODE}'." ;;
 esac

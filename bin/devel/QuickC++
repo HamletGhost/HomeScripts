@@ -2,6 +2,16 @@
 #
 # Creates an executable from the first of the specified files.
 #
+# The following variables are added to the compilation/linking command line:
+# - CPPFLAGS (also adds some default flags)
+# - CXXFLAGS
+# - OPTFLAGS
+# - LDFLAGS
+# - LIB (expected "-Llibdir -llibrary ...")
+#
+
+DEFAULT_CPPFLAGS="-Wall -pedantic --std=c++11"
+CXX='g++'
 
 function RemoveSourceSuffix {
 	local Name="$1"
@@ -24,9 +34,9 @@ fi
 
 ExecFile="$(RemoveSourceSuffix "$MainFile").exe"
 
-CPPFLAGS="-Wall -pedantic --std=c++11 ${CPPFLAGS}"
+CPPFLAGS="${DEFAULT_CPPFLAGS} ${CPPFLAGS}"
 
-g++ $CPPFLAGS $CXXFLAGS $OPTFLAGS -o "$ExecFile" "$@"
+$CXX $CPPFLAGS $CXXFLAGS $OPTFLAGS $LDFLAGS $LIB -o "$ExecFile" "$@"
 res=$?
 if [[ $res == 0 ]]; then
 	echo "Executable file created: '${ExecFile}'"
