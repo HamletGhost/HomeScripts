@@ -62,6 +62,8 @@ for Arg in "$@" ; do
 			( '@lib' ) VarName='LD_LIBRARY_PATH' ;;
 			( '@bin' ) VarName='PATH' ;;
 			( '@man' ) VarName='MANPATH' ;;
+			( '@ups' ) VarName='PRODUCTS' ;;
+			( * )      VarName="$Arg" ;;
 		esac
 		Value="${!VarName}"
 	else
