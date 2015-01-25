@@ -153,7 +153,17 @@ def Rehearse(args):
 				if CurrentPage == TotalPages:
 					print "Press <Enter> to go to end the rehearsal"
 			elif mode == "Review":
-				pass
+				Padding = len(str(TotalPages))
+				NSlides = 0
+				ElapsedTime = 0
+				for iPage, PageTimer in enumerate(Timers[:CurrentPage+1]):
+					if PageTimer is None: continue # page skipped
+					ElapsedTime += PageTimer.partial()
+				# for
+				if PageTimer is None: SlideTimeStr = "<skipped>"
+				else: SlideTimeStr = PageTimer.format_partial()
+				print "Page %*d: %s (total: %s)" \
+				  % (Padding, iPage+1, SlideTimeStr, FormatSeconds(ElapsedTime))
 			elif mode == "RehearsalEnd":
 				print "Document %s, %d pages:" % (DocumentName, TotalPages)
 				Padding = len(str(TotalPages))
@@ -215,11 +225,23 @@ def Rehearse(args):
 					CurrentPage += 1
 					if CurrentPage == TotalPages: mode = "RehearsalEnd"
 			elif mode == "Review":
-				if len(command) == 0: break
+				if command == "help":
+					print "Available commands (excluding 'help'):"
+					print " restart : start a new rehearsal"
+					print " ### : go to slide number ###"
+					continue
+				# if help
 				if command == "restart":
 					mode = "GetReady"
 					continue
 				# if
+				if len(command) == 0: NewPage = CurrentPage + 1
+				else:
+					try: NewPage = int(command)
+					except ValueError: break
+				#
+				if (NewPage > 0) and (NewPage <= TotalPages):
+					CurrentPage = NewPage
 			elif mode == "RehearsalEnd":
 				if len(command) == 0: break
 				if command == "restart":
@@ -228,11 +250,10 @@ def Rehearse(args):
 				# if
 				try: 
 					NewPage = int(command)
-					if (NewPage > 0) and (NewPage <= TotalPages):
-						CurrentPage = NewPage
-					mode == "Review"
-				except: pass
-				break
+				except ValueError: break
+				if (NewPage > 0) and (NewPage <= TotalPages):
+					CurrentPage = NewPage
+				mode = "Review"
 			else:
 				raise NotImplementedError("Don't know what to do in %r mode" % mode)
 			
