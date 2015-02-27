@@ -863,14 +863,15 @@ case "$MODE" in
 				FullDestination="${RemoteFullPath}:${ThisDestination}"
 				Execute $scp -pr "${TheseSources[@]}" "$FullDestination"
 			else
+				FullDestination="$ThisDestination"
 				declare -a FullSources=( )
 				for Source in "${TheseSources[@]}" ; do
 					FullSources=( "${FullSources[@]}" "${RemoteFullPath}:${Source}" )
 				done
-				if [[ "${#FullSources[@]}" -gt 1 ]] || [[ "${ThisDestination: -1}" == '/' ]]; then
-					Execute $mkdir -p "$ThisDestination"
+				if [[ "${#FullSources[@]}" -gt 1 ]] || [[ "${FullDestination: -1}" == '/' ]]; then
+					Execute $mkdir -p "$FullDestination"
 				fi
-				Execute $scp -pr "${FullSources[@]}" "$ThisDestination"
+				Execute $scp -pr "${FullSources[@]}" "$FullDestination"
 			fi
 			ExitCode=$?
 			if [[ $ExitCode != 0 ]]; then
