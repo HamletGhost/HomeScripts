@@ -11,7 +11,7 @@
 #
 
 DEFAULT_CPPFLAGS="-Wall -pedantic --std=c++11"
-CXX='g++'
+: ${CXX:='g++'}
 
 function RemoveSourceSuffix {
 	local Name="$1"
