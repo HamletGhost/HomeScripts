@@ -1,6 +1,12 @@
-#!/bin/sh
+#!/bin/bash
 #
 # Obtains a Kerberos ticket.
+#
+# Changes:
+# 20150227 [v 2.0]
+#   complete rewrite; removed some features that might turn out to be needed
+#   in the future
+#
 #
 
 ################################################################################
@@ -114,8 +120,33 @@ function DBG() { DBGN 1 "$*" ; }
 function MSG() { echo "$*" ; }
 
 function ExecCommand() {
-	DBG "$@"
-	"$@"
+	#
+	# Usage:  ExecCommand [--stdout=Redirect] [--nostdout] [--stderr=Redirect] [--nostderr] [--] command
+	#
+	local StdOut StdErr
+	while [[ $# -gt 0 ]]; do
+		DBGN 3 "ExecCommand: parsing argument '${1}'"
+		case "$1" in
+			( "--stdout="* ) StdOut="${1#--*=}" ;;
+			( "--stderr="* ) StdErr="${1#--*=}" ;;
+			( "--nostdout" ) StdOut='/dev/null' ;;
+			( "--nostderr" ) StdErr='/dev/null' ;;
+			( '--' )         shift ; break ;;
+			( * )
+				DBGN 3 "  unrecognized option; command will be: $@"
+				break ;;
+		esac
+		shift
+	done
+	if isDebugging ; then
+		if [[ "$StdOut" == "/dev/null" ]] || [[ "$StdErr" == "/dev/null" ]]; then
+			[[ "$StdOut" == "/dev/null" ]] && StdOut=''
+			[[ "$StdErr" == "/dev/null" ]] && StdErr=''
+			DBG "ExecCommand: output redirection to /dev/null overridden in debug mode"
+		fi
+	fi
+	DBG "$@"${StdOut:+" 1> '${StdOut}'"}${StdErr:+" 2> '${StdErr}'"}
+	eval "$@" ${StdOut:+ 1> "$StdOut"} ${StdErr:+ 2> "$StdErr"}
 } # ExecCommand()
 
 function FlagValue() {
@@ -204,7 +235,7 @@ function RenewTicket() {
 	local KRB5CCName="$2"
 	local -i GotTicket=0
 	
-	ExecCommand $kinit ${KRB5CCName:+ -c "$KRB5CCName"} -R "$Principal"
+	ExecCommand --nostderr -- $kinit ${KRB5CCName:+ -c "$KRB5CCName"} -R "$Principal"
 	local res=$?
 	if [[ $res == 0 ]]; then
 		MSG "An existing ticket for user '${KRB5USER}'${KRB5INSTANCE:+" (instance '${KRB5INSTANCE}')"} on realm '${KRB5REALM}' was successfully renewed."
