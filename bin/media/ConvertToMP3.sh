@@ -44,6 +44,8 @@ function help() {
 	   overwrite existing destination files
 	-q QUALITY , --quality=QUALITY
 	   quality index of the conversion (supported by: MP3 (lame))
+	-P PRESET , --preset=PRESET
+	   specify a configuration preset (supported by: MP# (lame))
 	-T , --overridetrack
 	   overrides the tag of track number to reflect the input files order
 	-P , --prependtrack
@@ -238,8 +240,48 @@ function AddFileToList() {
 } # AddFileToList
 
 
+function Execute() {
+	local -a Command=( "$@" )
+	if isFlagSet FAKE ; then
+		STDERR "DRYRUN| ${Command[@]}"
+	else
+		"${Command[@]}"
+	fi
+} # Execute()
+
+
+function SaveToFile() {
+	local OutputFile="$1"
+	if isFlagSet FAKE ; then
+		STDERR "DRYRUN|   > '${OutputFile}'"
+	else
+		cat > "$OutputFile"
+	fi
+} # SaveToFile()
+
+
 ################################################################################
 # conversion procedures
+
+function flac_source() {
+	local Source="$1"
+	Execute "$flacdec" "${flacdecargs[@]}" "$Source" 
+} # flac_source()
+
+function ogg_source() {
+	local Source="$1"
+	Execute "$oggdec" "${oggdecargs[@]}" "$Source"
+} # ogg_source()
+
+function to_mp3() {
+	Execute $lame \
+  	  -h ${ConversionQualityIndex:+-V "$ConversionQualityIndex"} ${Preset:+--preset="$Preset"} \
+	  ${TITLE:+--tt "$TITLE"} ${ARTIST:+--ta "$ARTIST"} ${ALBUM:+--tl "$ALBUM"} \
+	  ${YEAR:+--ty "$YEAR"} ${COMMENT:+--tc "$COMMENT"} ${GENRE:+--tg "$GENRE"} \
+	  ${TRACK:+--tn "$TRACK"} \
+	  '-' '-'
+} # to_mp3()
+
 
 function Convert_ogg_to_mp3() {
 	# Convert_ogg_to_mp3 SourcePath DestPath [FilesList]
@@ -280,21 +322,7 @@ function Convert_ogg_to_mp3() {
 	
 	isFlagSet QUIET || echo "$(date) - Converting '${SourceFile}' -> '${DestFile}'"
 	# now do the job...
-	if isFlagSet FAKE ; then
-		echo "$oggdec" "${oggdecargs[@]}" "$SourceFile" \| $lame -h ${ConversionQualityIndex:+-V "$ConversionQualityIndex"} \
-		  ${TITLE:+--tt "$TITLE"} ${ARTIST:+--ta "$ARTIST"} ${ALBUM:+--tl "$ALBUM"} \
-		  ${YEAR:+--ty "$YEAR"} ${COMMENT:+--tc "$COMMENT"} ${GENRE:+--tg "$GENRE"} \
-		  ${TRACK:+--tn "$TRACK"} \
-		  '-' '-' \> "$DestFile"
-	else
-		"$oggdec" "${oggdecargs[@]}" "$SourceFile" | $lame -h ${ConversionQualityIndex:+-V "$ConversionQualityIndex"} \
-		  ${TITLE:+--tt "$TITLE"} ${ARTIST:+--ta "$ARTIST"} ${ALBUM:+--tl "$ALBUM"} \
-		  ${YEAR:+--ty "$YEAR"} ${COMMENT:+--tc "$COMMENT"} ${GENRE:+--tg "$GENRE"} \
-		  ${TRACK:+--tn "$TRACK"} \
-		  '-' '-' > "$DestFile"
-		res=$?
-		[[ $res != 0 ]] && return $res
-	fi
+	ogg_source "$SourceFile" | to_mp3 | SaveToFile "$DestFile" || return $?
 	
 	[[ -n "$FilesList" ]] && AddFileToList "$FilesList" "$DestFile"
 	
@@ -340,21 +368,7 @@ function Convert_flac_to_mp3() {
 	
 	isFlagSet QUIET || echo "$(date) - Converting '${SourceFile}' -> '${DestFile}'"
 	# now do the job...
-	if isFlagSet FAKE ; then
-		echo "$flacdec" "${flacdecargs[@]}" "$SourceFile" \| $lame -h ${ConversionQualityIndex:+-V "$ConversionQualityIndex"} \
-		  ${TITLE:+--tt "$TITLE"} ${ARTIST:+--ta "$ARTIST"} ${ALBUM:+--tl "$ALBUM"} \
-		  ${YEAR:+--ty "$YEAR"} ${COMMENT:+--tc "$COMMENT"} ${GENRE:+--tg "$GENRE"} \
-		  ${TRACK:+--tn "$TRACK"} \
-		  '-' '-' \> "$DestFile"
-	else
-		"$flacdec" "${flacdecargs[@]}" "$SourceFile" | $lame -h ${ConversionQualityIndex:+-V "$ConversionQualityIndex"} \
-		  ${TITLE:+--tt "$TITLE"} ${ARTIST:+--ta "$ARTIST"} ${ALBUM:+--tl "$ALBUM"} \
-		  ${YEAR:+--ty "$YEAR"} ${COMMENT:+--tc "$COMMENT"} ${GENRE:+--tg "$GENRE"} \
-		  ${TRACK:+--tn "$TRACK"} \
-		  '-' '-' > "$DestFile"
-		res=$?
-		[[ $res != 0 ]] && return $res
-	fi
+	flac_source "$SourceFile" | to_mp3 | SaveToFile "$DestFile" || return $?
 	
 	[[ -n "$FilesList" ]] && AddFileToList "$FilesList" "$DestFile"
 	
@@ -421,6 +435,14 @@ for (( iParam = 1 ; iParam <= $# ; ++iParam )); do
 					ConversionQualityIndex="${!iParam}"
 				else
 					ConversionQualityIndex="${Param#--quality=}"
+				fi
+				;;
+			( '-P' | '--preset='* )
+				if [[ "$Param" =~ -. ]]; then
+					let ++iParam
+					Preset="${!iParam}"
+				else
+					Preset="${Param#--*=}"
 				fi
 				;;
 			( '-d' | '--debug'* )
