@@ -28,31 +28,23 @@ if ${use_color} ; then
 		fi
 	fi
 
-	if [[ ${EUID} == 0 ]] ; then
-		PS1='\[\033[01;31m\]\h\[\033[01;34m\] \W \$\[\033[00m\] '
-	else
-		PS1='\[\033[01;32m\]\u@\h\[\033[01;34m\] \w \$\[\033[00m\] '
-	fi
+        if [[ ${EUID} == 0 ]] ; then
+                PS1='\[\033[01;31m\]\h\[\033[01;34m\]:\w\$\[\033[00m\] '
+        else
+                PS1='\[\033[01;37m\]\u\[\033[0m\]@\[\033[01;32m\]\h\[\033[01;34m\]:\w\$\[\033[00m\] '
+        fi
 
-	alias ls='ls --color=auto'
-	alias grep='grep --colour=auto'
-	alias egrep='egrep --colour=auto'
-	alias fgrep='fgrep --colour=auto'
 else
-	if [[ ${EUID} == 0 ]] ; then
-		# show root@ when we don't have colors
-		PS1='\u@\h \W \$ '
-	else
-		PS1='\u@\h \w \$ '
-	fi
+        if [[ ${EUID} == 0 ]] ; then
+                # show root@ when we don't have colors
+                PS1='\u@\h:\w\$ '
+        else
+                PS1='\u@\h:\w\$ '
+        fi
 fi
-
-# load custom settings
-for Sh in /etc/profile.d/* ; do
-	[[ -x "$Sh" ]] && source "$Sh"
-done
 
 
 # Try to keep environment pollution down, EPA loves us.
 unset use_color safe_term match_lhs
+
 
