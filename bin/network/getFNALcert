@@ -1,0 +1,101 @@
+#!/bin/bash
+#
+# Reads a p12 certificate from Fermilab
+#
+
+SCRIPTNAME="$(basename "$0")"
+SCRIPTDIR="$(dirname "$0")"
+
+# host name (no domain) of the server used to connect to FNAL when needed
+BridgeHost="uboonegpvm04"
+
+CertRemotePath=".ssh/certificates/FNALkrb5"
+CertLocalPath="$CertRemotePath"
+
+
+###############################################################################
+function STDERR() { echo "$*" >&2 ; }
+function FATAL() {
+	local -i Code="$1"
+	shift
+	STDERR "FATAL ERROR (code: ${Code}): $*"
+	exit "$Code"
+} # FATAL()
+function LASTFATAL() {
+	local -i Code="$?"
+	[[ "$Code" == 0 ]] || FATAL "$Code" "$@"
+} # LASTFATAL()
+
+function atFNAL() {
+	local HostName="$(hostname)"
+	[[ "$HostName" =~ \.fnal\.gov$ ]]
+} # atFNAL()
+
+
+###############################################################################
+if atFNAL ; then
+	
+	#
+	# if we are on site, we can directly create the certificate
+	#
+	function CreateCertificate() {
+		
+		local -r DestPath="${1:-"${HOME}/.ssh/certificates/FNALkrb5"}"
+		local -r CertBaseName="x509up_u${UID}"
+		local -r CertCreationDir="/tmp"
+		local -r CertDestDir="$(dirname "$DestPath")"
+		local -r CertDestName="$(basename "$DestPath")"
+		
+		# make sure we have the right rights
+		echo "Obtaining credentials..."
+		GetTicket.sh
+		LASTFATAL "Failed to get credentials."
+		
+		# create the ticket
+		echo "Creating the certificates..."
+		getcert
+		LASTFATAL "Failed to create certificates."
+		
+		# move it to a known location
+		echo "Transferring the certificates..."
+		mkdir -p "$CertDestDir" && mv "${CertCreationDir%%/}/${CertBaseName}"* "${CertDestDir}/"
+		LASTFATAL "Failed to move certificates to '${CertDestDir}'."
+	
+		# give them a reasonable name
+		echo "Renaming certificated into '${CertDestName}'..."
+		(
+			cd "$CertDestDir"
+			rename "$CertBaseName" "$CertDestName" "${CertBaseName}"*
+		)
+		LASTFATAL "Failed to rename the certificate into '${CertBaseName}'."
+		
+		echo "Certificates stored as '${DestPath}*'."
+		return 0
+	} # CreateCertificate()
+	
+	cd "$HOME"
+	
+#	PATH="${PATH}:${SCRIPTDIR}"
+	
+	CreateCertificate "$CertRemotePath"
+
+else # not at FNAL
+	
+	function ConnectFNAL() { fnal --host="$BridgeHost" "$@" ; }
+
+	echo "Using '${BridgeHost}' to connect to FNAL."
+
+	LocalScriptDir="${SCRIPTDIR#${HOME}/}"
+
+	# call the equivalent script at remote site
+	ConnectFNAL exec bash -l "${LocalScriptDir}/${SCRIPTNAME}" "$@"
+	LASTFATAL "Creation of certificate at remote site failed."
+
+	# copy back the certificates
+	CertLocalDir="$(dirname "$CertLocalPath")"
+	mkdir -p "${CertLocalDir%%/}/"
+	ConnectFNAL read "${CertRemotePath}*" "${CertLocalDir%%/}"
+	LASTFATAL "Failed to transfer certificates from remote site."
+
+fi
+

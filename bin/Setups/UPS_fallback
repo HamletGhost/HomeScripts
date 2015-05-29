@@ -1,0 +1,25 @@
+#!/bin/bash
+
+declare UPS_fallback_dir
+for UPS_fallback_dir in \
+  LArSoft/software/LArSoft/products \
+  MicroBooNE/software/LArSoft/products \
+  LBNE/software/LArSoft/products \
+
+do
+	[[ "${UPS_fallback_dir:0:1}" == '/' ]] || UPS_fallback_dir="${HOME}/${UPS_fallback_dir}"
+	[[ -d "$UPS_fallback_dir" ]] || continue
+	
+	if [[ -x "${UPS_fallback_dir}/setup" ]]; then
+		echo "Setting UPS fallback repository at '${UPS_fallback_dir}'"
+		source "${UPS_fallback_dir}/setup"
+	elif [[ -x "${UPS_fallback_dir}/setups" ]]; then
+		echo "Setting UPS fallback repository at '${UPS_fallback_dir}'"
+		source "${UPS_fallback_dir}/setups"
+	else
+		echo "Adding UPS fallback repository at '${UPS_fallback_dir}'"
+		PRODUCTS="${PRODUCTS:+${PRODUCTS}:}${UPS_fallback_dir}"
+	fi
+done
+unset UPS_fallback_dir
+
