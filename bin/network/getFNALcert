@@ -63,7 +63,10 @@ if atFNAL ; then
 	
 		# give them a reasonable name
 		echo "Renaming certificated into '${CertDestName}'..."
-		rename "$CertBaseName" "$CertDestName" "${CertDestDir}/${CertBaseName}"*
+		(
+			cd "$CertDestDir"
+			rename "$CertBaseName" "$CertDestName" "${CertBaseName}"*
+		)
 		LASTFATAL "Failed to rename the certificate into '${CertBaseName}'."
 		
 		echo "Certificates stored as '${DestPath}*'."

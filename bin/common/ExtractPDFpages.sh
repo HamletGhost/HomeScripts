@@ -1,6 +1,7 @@
 #!/bin/sh
 #
-#
+# Extracts single pages from a PDF file.
+# Run with `--help` for usage instrutcions.
 #
 
 SCRIPTNAME="$(basename "$0")"
@@ -18,20 +19,21 @@ function help() {
 	cat <<-EOH
 	Extracts the specified range of pages from a PDF file.
 
-	Usage:  ${SCRIPTNAME}  [options] SourceFile FirstPage[-LastPage] [OutputFile]
+	Usage:  ${SCRIPTNAME}  [options] SourceFile FirstPage[-LastPage]
 
 	If LastPage is not specified, only one page is extracted.
-	If OutputFile is not specified, it will based on SourceFile name.
 
 	Options:
+	--output=OUTUTFILE [SourceFile]
+	    base the name of output file(s) on OUTPUTFILE
+	--single , -S
+	    splits the specified range in single PDF pages
 	--force , -f
 	    if the output file name is not specified, overwrites the output file if it exists
 	EOH
-}
+} # help()
 
-function STDERR() {
-	echo "$*" >&2
-} # STDERR
+function STDERR() { echo "$*" >&2 ; }
 
 function FATAL() {
 	local Code="$1"
@@ -41,6 +43,40 @@ function FATAL() {
 } # FATAL()
 
 
+function ExtractPages() {
+	# Usage:  ExtractPages SourceFile OutputFile FirstPage LastPage
+	local SourceFile="$1"
+	local OutputFile="$2"
+	local -i FirstPage="$3"
+	local -i LastPage="${4:-${FirstPage}}"
+
+	local SourceName="$(basename "$SourceFile")"
+	
+	local TagType PageLabel
+	if [[ "$FirstPage" == "$LastPage" ]]; then
+		TagType="page"
+		PageLabel="${FirstPage}"
+	else
+		TagType="pages"
+		PageLabel="${FirstPage}-${LastPage}"
+	fi
+	local Tag="${TagType}${PageLabel}"
+	if [[ -z "$OutputFile" ]]; then
+		BaseName="${SourceName%.pdf}"
+		Extension="${SourceName#${BaseName}}"
+		OutputFile="${BaseName}${Tag:+_${Tag}}.pdf"
+		isFlagSet FORCE && rm -f "$OutputFile"
+		[[ -r "$OutputFile" ]] && FATAL 1 "Output file '${OutputFile}' already exist. Nothing done."
+	fi
+	
+	$gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -dFirstPage="$FirstPage" -dLastPage="$LastPage" -sOutputFile="$OutputFile" "$SourceFile" > /dev/null
+	local res=$?
+	[[ $res == 0 ]] && echo "'${OutputFile}' created from ${Tag} ${PageLabel} of '${SourceFile}'."
+	return $?
+} # ExtractPages()
+
+
+###############################################################################
 # parameters loop
 declare -a Params
 declare -i NParams
@@ -50,11 +86,11 @@ for Param in "$@" ; do
 		Params[NParams++]="$Param"
 	else
 		case "$Param" in
+			( "--single" | "-S" ) DoSinglePages=1 ;;
+			( "--output="* )      OutputFile="${Param#--*=}" ;;
+			( "--force" | "-f" )  FORCE=1 ;;
 			( "-h" | "--help" | "-?" )
 				DoHelp=1
-				;;
-			( "--force" | "-f" )
-				FORCE=1
 				;;
 			( "-" | "--" )
 				NoMoreParams=1
@@ -72,30 +108,43 @@ if [[ $NParams == 0 ]] || isFlagSet DoHelp ; then
 fi
 
 SourceFile="${Params[0]}"
-PagesRange="${Params[1]}"
-OutputFile="${Params[2]}"
+unset Params[0]
+declare -a InputRanges=( "${Params[@]}" )
 
 [[ -r "$SourceFile" ]] || FATAL 2 "Can't find source file '${SourceFile}'."
 
-SourceName="$(basename "$SourceFile")"
-declare -i FirstPage="${PagesRange%-*}"
-declare -i LastPage="${PagesRange#*-}"
+#
+# Expand the ranges
+#
+declare -a Ranges
+for PagesRange in "${InputRanges[@]}" ; do
+	if isFlagSet DoSinglePages ; then
+		if [[ "$PagesRange" =~ - ]]; then
+			Ranges=( "${Ranges[@]}" $(seq ${PagesRange/-/ }) )
+		else
+			Ranges=( "${Ranges[@]}" "$PagesRange" )
+		fi
+	else
+		Ranges=( "${Ranges[@]}" "$PagesRange" )
+	fi
+done
 
-if [[ "$FirstPage" == "$LastPage" ]]; then
-	Tag="page"
-	PageLabel="$FirstPage"
-else
-	Tag="pages"
-	PageLabel="$PagesRange"
+#
+# process the ranges
+#
+declare -i nErrors=0
+for PagesRange in "${Ranges[@]}" ; do
+	declare -i FirstPage="${PagesRange%-*}"
+	declare -i LastPage="${PagesRange#*-}"
+
+	ExtractPages "$SourceFile" "$OutputFile" "$FirstPage" "$LastPage"
+	res=$?
+	[[ $res != 0 ]] && let ++nErrors
+done
+
+if [[ $nErrors != 0 ]]; then
+	STDERR "${nErrors} errors while extracting ${#Ranges[@]} page ranges from '${SourceFile}'"
+	exit $res
 fi
+echo "Extracted ${#Ranges[@]} page ranges from '${SourceFile}'"
 
-if [[ -z "$OutputFile" ]]; then
-	BaseName="${SourceName%.pdf}"
-	Extension="${SourceName#${BaseName}}"
-	OutputFile="${BaseName}${Tag:+_${Tag}${PageLabel}}.pdf"
-	isFlagSet FORCE && rm -f "$OutputFile"
-	[[ -r "$OutputFile" ]] && FATAL 1 "Output file '${OutputFile}' already exist. Nothing done."
-fi
-
-$gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -dFirstPage="$FirstPage" -dLastPage="$LastPage" -sOutputFile="$OutputFile" "$SourceFile" > /dev/null
-echo "'${OutputFile}' created from ${Tag} ${PageLabel} of '${SourceFile}'."
