@@ -7,7 +7,7 @@ SCRIPTNAME="$(basename "$0")"
 SCRIPTDIR="$(dirname "$0")"
 
 # host name (no domain) of the server used to connect to FNAL when needed
-BridgeHost="uboonegpvm04"
+: ${BRIDGEHOST:="uboonegpvm04"}
 
 CertRemotePath=".ssh/certificates/FNALkrb5"
 CertLocalPath="$CertRemotePath"
@@ -31,6 +31,20 @@ function atFNAL() {
 	[[ "$HostName" =~ \.fnal\.gov$ ]]
 } # atFNAL()
 
+function GetTicket() {
+	local -r GetTicketScriptName='GetTicket.sh'
+	local GetTicketScriptPath
+	GetTicketScriptPath="$(which "$GetTicketScriptName" 2> /dev/null)"
+	if [[ ! -x "$GetTicketScriptName" ]]; then
+		GetTicketScriptPath="${SCRIPRDIR}/${GetTicketScriptName}"
+	fi
+	if [[ -x "$GetTicketScriptName" ]]; then
+		"$GetTicketScriptPath"
+	else
+		STDERR "Ticket script '${GetTicketScriptName}' not found."
+	fi
+}
+
 
 ###############################################################################
 if atFNAL ; then
@@ -48,7 +62,7 @@ if atFNAL ; then
 		
 		# make sure we have the right rights
 		echo "Obtaining credentials..."
-		GetTicket.sh
+		GetTicket
 		LASTFATAL "Failed to get credentials."
 		
 		# create the ticket
@@ -81,9 +95,9 @@ if atFNAL ; then
 
 else # not at FNAL
 	
-	function ConnectFNAL() { fnal --host="$BridgeHost" "$@" ; }
+	function ConnectFNAL() { fnal --host="$BRIDGEHOST" "$@" ; }
 
-	echo "Using '${BridgeHost}' to connect to FNAL."
+	echo "Using '${BRIDGEHOST}' to connect to FNAL."
 
 	LocalScriptDir="${SCRIPTDIR#${HOME}/}"
 
