@@ -104,6 +104,6 @@ done
 
 [[ $nInputs == 2 ]] || FATAL 1 "Exactly two input files must be specified -- found ${nInputs}."
 
-DBG "Base command:  diff -y ${WIDTH:+-W "${WIDTH}"} -b "${Options[@]}" <( ProcessInput "${Inputs[0]}" ) <( ProcessInput "${Inputs[1]}" ) | less -SRMr -x 8"
-diff -y ${WIDTH:+-W "${WIDTH}"} -b "${Options[@]}" <( ProcessInput "${Inputs[0]}" ) <( ProcessInput "${Inputs[1]}" ) | less -SRMr -x 8
+DBG "Base command:  diff -y ${WIDTH:+-W "${WIDTH}"} -b \"${Options[@]}\" \<( ProcessInput \"${Inputs[0]}\" ) \<( ProcessInput \"${Inputs[1]}\" ) | less -SRMr -x 8"
+diff -y ${WIDTH:+-W ${WIDTH}} -b "${Options[@]}" <( ProcessInput "${Inputs[0]}" ) <( ProcessInput "${Inputs[1]}" ) | less -SRMr -x 8
 
