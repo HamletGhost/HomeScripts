@@ -416,6 +416,17 @@ function Execute() {
 } # Execute()
 
 
+function TransferData() {
+	#
+	# Usage:  TransferData  Destination Sources ...
+	#
+	local Destination="$1"
+	shift
+	local -a Sources=( "$@" )
+	Execute rsync -av -e ssh "${Sources[@]}" "$Destination"
+} # TransferData()
+
+
 ################################################################################
 ###
 ### parameter parser
@@ -861,7 +872,7 @@ case "$MODE" in
 			# -r: recursive directory copy; -p: preserve attributes
 			if [[ "$MODE" == 'write' ]]; then
 				FullDestination="${RemoteFullPath}:${ThisDestination}"
-				Execute $scp -pr "${TheseSources[@]}" "$FullDestination"
+				TransferData "$FullDestination" "${TheseSources[@]}"
 			else
 				FullDestination="$ThisDestination"
 				declare -a FullSources=( )
@@ -871,7 +882,7 @@ case "$MODE" in
 				if [[ "${#FullSources[@]}" -gt 1 ]] || [[ "${FullDestination: -1}" == '/' ]]; then
 					Execute $mkdir -p "$FullDestination"
 				fi
-				Execute $scp -pr "${FullSources[@]}" "$FullDestination"
+				TransferData "$FullDestination" "${FullSources[@]}"
 			fi
 			ExitCode=$?
 			if [[ $ExitCode != 0 ]]; then
