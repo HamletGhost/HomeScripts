@@ -35,10 +35,10 @@ function GetTicket() {
 	local -r GetTicketScriptName='GetTicket.sh'
 	local GetTicketScriptPath
 	GetTicketScriptPath="$(which "$GetTicketScriptName" 2> /dev/null)"
-	if [[ ! -x "$GetTicketScriptName" ]]; then
-		GetTicketScriptPath="${SCRIPRDIR}/${GetTicketScriptName}"
+	if [[ ! -x "$GetTicketScriptPath" ]]; then
+		GetTicketScriptPath="${SCRIPTDIR}/${GetTicketScriptName}"
 	fi
-	if [[ -x "$GetTicketScriptName" ]]; then
+	if [[ -x "$GetTicketScriptPath" ]]; then
 		"$GetTicketScriptPath"
 	else
 		STDERR "Ticket script '${GetTicketScriptName}' not found."
