@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 SessionCfgPath="$1"
 : ${tmuxConfigDir:="${HOME}/etc/tmux"}
@@ -8,7 +8,6 @@ SessionName="${2:-"$(basename "${SessionCfgPath%.conf}")"}"
 if ! tmux has-session -t "$SessionName" >& /dev/null ; then
 	tmuxConfig="${tmuxConfigDir}/${SessionCfgPath}"
 	[[ -f "$tmuxConfig" ]] || tmuxConfig="${tmuxConfigDir}/${SessionCfgPath}.conf"
-
 	
 	if [[ ! -r "$tmuxConfig" ]] ; then
 		echo "tmux configuration file '${tmuxConfig}' not found, a plain session will be created."
