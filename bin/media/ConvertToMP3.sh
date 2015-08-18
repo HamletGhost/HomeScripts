@@ -45,7 +45,7 @@ function help() {
 	-q QUALITY , --quality=QUALITY
 	   quality index of the conversion (supported by: MP3 (lame))
 	-P PRESET , --preset=PRESET
-	   specify a configuration preset (supported by: MP# (lame))
+	   specify a configuration preset (supported by: MP3 (lame))
 	-T , --overridetrack
 	   overrides the tag of track number to reflect the input files order
 	-P , --prependtrack
@@ -275,7 +275,7 @@ function ogg_source() {
 
 function to_mp3() {
 	Execute $lame \
-  	  -h ${ConversionQualityIndex:+-V "$ConversionQualityIndex"} ${Preset:+--preset="$Preset"} \
+  	  -h ${ConversionQualityIndex:+-V "$ConversionQualityIndex"} ${Preset:+--preset "$Preset"} \
 	  ${TITLE:+--tt "$TITLE"} ${ARTIST:+--ta "$ARTIST"} ${ALBUM:+--tl "$ALBUM"} \
 	  ${YEAR:+--ty "$YEAR"} ${COMMENT:+--tc "$COMMENT"} ${GENRE:+--tg "$GENRE"} \
 	  ${TRACK:+--tn "$TRACK"} \
@@ -438,11 +438,11 @@ for (( iParam = 1 ; iParam <= $# ; ++iParam )); do
 				fi
 				;;
 			( '-P' | '--preset='* )
-				if [[ "$Param" =~ -. ]]; then
+				if [[ "$Param" =~ ^-- ]]; then
+					Preset="${Param#--*=}"
+				else
 					let ++iParam
 					Preset="${!iParam}"
-				else
-					Preset="${Param#--*=}"
 				fi
 				;;
 			( '-d' | '--debug'* )
