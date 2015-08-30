@@ -10,21 +10,24 @@
 #     tested long enough to have it official
 # 1.1 (petrillo@fnal.gov, 20141004)
 #     added --asuser option
-# 1.2 (20141114, petrillo@fnal.gov):
+# 1.2 (20141114, petrillo@fnal.gov)
 #   added exec option
+# 1.3 (20150830, petrillo@fnal.gov)
+#   added "ping" mode
 #
 
 SCRIPTNAME="$(basename "$0")"
 SCRIPTDIR="$(dirname "$0")"
 CWD="$(pwd)"
 
-SCRIPTVERSION="1.2"
+SCRIPTVERSION="1.3"
 
 # program paths
 : ${kinit:="kinit"}
 : ${ssh:="ssh"}
 : ${scp:="scp"}
 : ${mkdir:="mkdir"}
+: ${ping:="ping"}
 
 ssh_default_options=( '-X' )
 # ssh_default_options=( '-X' '-Y' )
@@ -45,8 +48,10 @@ function help() {
 	    the current directory
 	--write , -w , write , w
 	    writes the specified files into a directory in the remote server
-	--exec
+	--exec , -x , exec , x
 	    executes a command on the remote host
+	--ping , -p , ping , p
+	    executes ping with the specified parameters
 	--version , -V
 	    just prints the version numbre and exits
 	--help , -h , -?
@@ -237,6 +242,22 @@ function help_exec() {
 } # help_exec()
 
 
+function help_ping() {
+	cat <<-EOH
+	Mode: ping
+	  ${SCRIPTNAME}  <--ping|-p|ping|p> [options] [--] [ping options]
+	
+	Executes ping on the server. Arguments are passed to ping.
+	
+	Ping mode options:
+	  no specific one
+	
+	The common options are accepted:
+	
+	EOH
+} # help_ping()
+
+
 function isFlagSet() {
 	local VARNAME="$1"
 	[[ -n "${!VARNAME//0}" ]]
@@ -391,24 +412,37 @@ function Execute() {
 		local OldStdIn OldStdOut OldStdErr
 		if [[ -n "$StdIn" ]]; then
 			OldStdIn="$(readlink "/proc/$$/fd/0")"
+			DBGN 3 "Saving standard input: '${OldStdIn}'"
 			exec 0< "$StdIn"
 		fi
 		if [[ -n "$StdOut" ]]; then
 			OldStdOut="$(readlink "/proc/$$/fd/1")"
+			DBGN 3 "Saving standard output: '${OldStdOut}'"
 			exec 1> "$StdOut"
 		fi
 		if [[ -n "$StdErr" ]]; then
 			OldStdErr="$(readlink "/proc/$$/fd/2")"
+			DBGN 3 "Saving standard error: '${OldStdErr}'"
 			exec 2> "$StdErr"
 		fi
 		
 		"${Command[@]}"
 		ExitCode=$?
+		DBG "Exit code for '${Command[0]}': ${ExitCode}"
 		
 		# reset redirections
-		[[ -n "$OldStdErr" ]] && exec 2> "$OldStdErr"
-		[[ -n "$OldStdOut" ]] && exec 1> "$OldStdOut"
-		[[ -n "$OldStdIn" ]] && exec 0< "$OldStdIn"
+		if [[ -n "$OldStdErr" ]]; then
+			exec 2> "$OldStdErr"
+			DBGN 3 "Standard error restored to '${OldStdErr}'"
+		fi
+		if [[ -n "$OldStdOut" ]]; then
+			exec 1> "$OldStdOut"
+			DBGN 3 "Standard output restored to '${OldStdOut}'"
+		fi
+		if [[ -n "$OldStdIn" ]]; then
+			exec 0< "$OldStdIn"
+			DBGN 3 "Standard input restored to '${OldStdIn}'"
+		fi
 		
 	fi
 	
@@ -606,6 +640,63 @@ function parse_options_exec() {
 	return $NDigested
 } # parse_options_exec()
 
+function parse_options_ping() {
+	
+	local -i iParam=$(( $1 - 1 ))
+	shift
+	local -i NDigested=0
+	
+	while [[ $iParam -lt $# ]]; do
+		let ++iParam
+		local Param="${!iParam}"
+		
+		DBGN 3 "  is '${Param}' a ${MODE} option?"
+		
+		# by default, assume we swallow one parameter only
+		let ++NDigested
+		
+		if [[ "${Param:0:1}" == '-' ]] && isFlagUnset NoMoreOptions ; then
+			case "$Param" in
+				( * )
+					FATAL 1 "Invalid ${MODE} mode option '${Param}'."
+			esac
+		else
+			NoMoreOptions=1
+			Options=( "${Options[@]}" "$Param" )
+		fi
+		
+		break
+	done
+	return $NDigested
+} # parse_options_ping()
+
+
+function set_environment() {
+	# Sets the environment for the specified mode
+	local Mode="$1"
+	
+	local SetEnvironmentProc="set_environment_${Mode}"
+	
+	DBGN 1 "Setting environment for mode '${Mode}'"
+	
+	declare -f "$SetEnvironmentProc" >& /dev/null
+	if [[ $? != 0 ]]; then
+		DBGN 2 "No specific environment found."
+		return
+	fi
+
+	"$SetEnvironmentProc"
+	
+} # set_environment()
+
+function set_environment_ping() {
+	DBGN 2 "Setting the environment for ping mode."
+	
+	# Kerberos is not needed to ping the server:
+	KerberosNeeded=0
+	
+} # set_environment_ping()
+
 
 declare MODE=""
 declare -i NoMoreOptions=0
@@ -650,6 +741,7 @@ while [[ $iParam -lt $nParams ]]; do
 				( '--write' | '-w' | 'write' | 'w' ) SetOperationMode 'write' ;;
 				( '--read' | '-r' | 'read' | 'r' )   SetOperationMode 'read' ;;
 				( '--exec' | '-x' | 'exec' | 'x' )   SetOperationMode 'exec' ;;
+				( '--ping' | '-p' | 'ping' | 'p' )   SetOperationMode 'ping' ;;
 			esac
 			[[ -n "$MODE" ]] && continue
 		fi
@@ -778,12 +870,16 @@ fi
 declare RemoteFullPath="${AsRemoteUser}@${RemotePath}"
 DBGN 2 "Complete user path:   '${RemoteFullPath}'"
 
+set_environment "$MODE"
+
 
 ################################################################################
 ### Get a Kerberos ticket as needed
 ###
 
-if [[ -n "$KerberosRealm" ]]; then
+if isFlagUnset KerberosNeeded ; then
+	DBGN 1 "No Kerberos authentication is needed."
+elif [[ -n "$KerberosRealm" ]]; then
 	
 	
 	declare -i GotKerberosTicket=0
@@ -896,6 +992,12 @@ case "$MODE" in
 	#############################################################################
 	( 'exec' )
 		Execute $ssh -l "$RemoteUser" "${ssh_options[@]}" "$RemotePath" "${Command[@]}"
+		ExitCode=$?
+		;;
+	
+	#############################################################################
+	( 'ping' )
+		Execute $ping "${Options[@]}" -- "$RemotePath"
 		ExitCode=$?
 		;;
 	
