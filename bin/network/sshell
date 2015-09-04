@@ -679,6 +679,9 @@ function set_environment() {
 	
 	DBGN 1 "Setting environment for mode '${Mode}'"
 	
+	# start from a default environment
+	set_default_environment
+	
 	declare -f "$SetEnvironmentProc" >& /dev/null
 	if [[ $? != 0 ]]; then
 		DBGN 2 "No specific environment found."
@@ -688,6 +691,13 @@ function set_environment() {
 	"$SetEnvironmentProc"
 	
 } # set_environment()
+
+function set_default_environment() {
+	# sets variebles for a generic environment
+	
+	KerberosNeeded=1
+
+} # set_default_environment()
 
 function set_environment_ping() {
 	DBGN 2 "Setting the environment for ping mode."
