@@ -71,7 +71,7 @@ function ExtractPages() {
 	
 	$gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -dFirstPage="$FirstPage" -dLastPage="$LastPage" -sOutputFile="$OutputFile" "$SourceFile" > /dev/null
 	local res=$?
-	[[ $res == 0 ]] && echo "'${OutputFile}' created from ${Tag} ${PageLabel} of '${SourceFile}'."
+	[[ $res == 0 ]] && echo "'${OutputFile}' created from ${TagType} ${PageLabel} of '${SourceFile}'."
 	return $?
 } # ExtractPages()
 

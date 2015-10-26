@@ -1,5 +1,12 @@
 # Setup UPS_CVMFS || return # failure goes with a too long timeout
+Setup UPS_helper || return # SetupUPSrepository
 
-echo "Setting UPS (local repository) up"
-source "${HOME}/physics/LArSoft/software/products/setups"
+case "$HOSTNAME" in
+	( 'woof'* )
+		SetupUPSrepository '/products' "local UPS repository"
+		;;
+	( * )
+		SetupUPSrepository 'physics/LArSoft/software/products' "local UPS repository"
+		;;
+esac
 

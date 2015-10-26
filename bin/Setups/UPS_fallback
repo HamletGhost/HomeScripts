@@ -1,25 +1,15 @@
-#!/bin/bash
+#
+# Sets up a fallback UPS directory
+#
 
-declare UPS_fallback_dir
-for UPS_fallback_dir in \
-  LArSoft/software/LArSoft/products \
-  MicroBooNE/software/LArSoft/products \
-  LBNE/software/LArSoft/products \
+Setup UPS_helper || return # SetupUPSrepository
 
-do
-	[[ "${UPS_fallback_dir:0:1}" == '/' ]] || UPS_fallback_dir="${HOME}/${UPS_fallback_dir}"
-	[[ -d "$UPS_fallback_dir" ]] || continue
-	
-	if [[ -x "${UPS_fallback_dir}/setup" ]]; then
-		echo "Setting UPS fallback repository at '${UPS_fallback_dir}'"
-		source "${UPS_fallback_dir}/setup"
-	elif [[ -x "${UPS_fallback_dir}/setups" ]]; then
-		echo "Setting UPS fallback repository at '${UPS_fallback_dir}'"
-		source "${UPS_fallback_dir}/setups"
-	else
-		echo "Adding UPS fallback repository at '${UPS_fallback_dir}'"
-		PRODUCTS="${PRODUCTS:+${PRODUCTS}:}${UPS_fallback_dir}"
-	fi
-done
-unset UPS_fallback_dir
+# expecting that the setup will add the repository *after* the existing ones
+SetupUPSrepository LArSoft/software/LArSoft/products    "fallback UPS" && return 0
+SetupUPSrepository MicroBooNE/software/LArSoft/products "fallback UPS" && return 0
+SetupUPSrepository DUNE/software/LArSoft/products       "fallback UPS" && return 0
+SetupUPSrepository LArSoft/software/products            "fallback UPS" && return 0
 
+# None available. It sucks,
+echo "No fallback UPS repository found."
+return 1

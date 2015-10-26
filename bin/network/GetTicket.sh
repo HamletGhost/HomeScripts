@@ -257,7 +257,7 @@ function GetTicket() {
 	# ticket there; if so, we try to use it, unless we really want a new one:
 	#
 	if isFlagSet DoRenewTicket ; then
-		RenewTicket "$KRB5FULLUSER" && GotTicket=1
+		RenewTicket "$KRB5FULLUSER" "$KRB5CCNAME" && GotTicket=1
 	fi
 	
 	# we might need in some cases to have the ticket in a shared location
@@ -274,8 +274,8 @@ function GetTicket() {
 			RemoveKerberosOption '-f' # get rid of the forward options...
 			AddKerberosOption '-F' # ... and add just one non-forwardable option
 		fi
-		[[ -n "$KRB5LIFETIME" ]] && AddKerberosOption "-l${KRB5LIFETIME}"
-		[[ -n "$KRB5RENEWTIME" ]] && AddKerberosOption "-r${KRB5RENEWTIME}"
+		[[ -n "$KRB5LIFETIME" ]] && AddKerberosOption "-l" "$KRB5LIFETIME"
+		[[ -n "$KRB5RENEWTIME" ]] && AddKerberosOption "-r" "$KRB5RENEWTIME"
 		[[ -n "$KRB5CCNAME" ]] && AddKerberosOption "-c" "$KRB5CCNAME"
 		isFlagSet NAT && AddKerberosOption '-n'
 		

@@ -1,0 +1,30 @@
+#
+# function to setup a UPS repository
+#
+
+function SetupUPSrepository () {
+	local RepoDir="$1"
+	local Description="${2:-"UPS repository"}"
+	
+	[[ "${RepoDir:0:1}" == '/' ]] || RepoDir="${HOME}/${RepoDir}"
+	[[ -d "$RepoDir" ]] || return 1
+	
+	if [[ -r "${RepoDir}/setup" ]]; then
+		echo "Setting ${Description} at '${RepoDir}' up"
+		source "${RepoDir}/setup"
+	elif [[ -r "${RepoDir}/setups" ]]; then
+		echo "Setting ${Description} at '${RepoDir}' ups"
+		source "${RepoDir}/setups"
+	else
+		echo "Adding ${Description} repository at '${RepoDir}'"
+		PRODUCTS="${PRODUCTS:+${PRODUCTS}:}${RepoDir}"
+	fi
+	
+	local res=$?
+	if [[ $res == 0 ]]; then
+		# make sure the setup functions are available to the subshells
+		export -f setup unsetup
+	fi
+	return $res
+} # SetupUPSrepository()
+
