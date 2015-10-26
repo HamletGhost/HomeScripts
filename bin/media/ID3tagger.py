@@ -356,13 +356,16 @@ if __name__ == "__main__":
 	
 	import argparse
 	
-	parser = argparse.ArgumentParser()
+	parser = argparse.ArgumentParser(
+          description="Creates a script assigning ID3 tags to MP3 files."
+          )
 	
 	parser.add_argument("InputFiles", nargs="*", action="store",
 	  help="input files [default: from stdin]")
 	
 	parser.add_argument("--output", action="store", dest="OutputFile",
 	  help="output file [default: stdout]", default=None)
+	parser.add_argument('--version', action='version', version='%(prog)s 1.0')
 	
 	arguments = parser.parse_args()
 	
