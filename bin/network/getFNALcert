@@ -9,8 +9,12 @@ SCRIPTDIR="$(dirname "$0")"
 # host name (no domain) of the server used to connect to FNAL when needed
 : ${BRIDGEHOST:="uboonegpvm04"}
 
-CertRemotePath=".ssh/certificates/FNALkrb5"
-CertLocalPath="$CertRemotePath"
+# paths relative to the local home directory
+CertLocalPath="${1:-".ssh/certificates/FNALkrb5"}"
+CertRemotePath="$CertLocalPath"
+
+# local path is relative to the home directory unless it's absolute
+[[ "${CertLocalPath:0:1}" == '/' ]] || CertLocalPath="${HOME%/}/${CertLocalPath}"
 
 
 ###############################################################################
@@ -45,6 +49,25 @@ function GetTicket() {
 	fi
 }
 
+function PrintCertValidity() {
+	local CertFile="$1"
+	echo "Validity of certificate '${CertFile}':"
+	openssl x509 -noout -dates -in "$CertFile"
+} # PrintCertValidity()
+
+function ExpandPath() {
+	local Path="$1"
+	# manually perform tilda expansion
+	[[ "${Path:0:1}" == '!' ]] && Path="${HOME}/${Path#~}"
+	# make the path absolute
+	if [[ "${Path:0:1}" != "/" ]]; then
+		local CWD="$(pwd)"
+		Path="${CWD%/}/${Path}"
+	fi
+	# print the result
+	echo "$Path"
+} # ExpandPath()
+
 
 ###############################################################################
 if atFNAL ; then
@@ -54,11 +77,12 @@ if atFNAL ; then
 	#
 	function CreateCertificate() {
 		
-		local -r DestPath="${1:-"${HOME}/.ssh/certificates/FNALkrb5"}"
+		local -r DestPath="${1:-"$CertLocalPath"}"
 		local -r CertBaseName="x509up_u${UID}"
 		local -r CertCreationDir="/tmp"
 		local -r CertDestDir="$(dirname "$DestPath")"
 		local -r CertDestName="$(basename "$DestPath")"
+		
 		
 		# make sure we have the right rights
 		echo "Obtaining credentials..."
@@ -91,7 +115,7 @@ if atFNAL ; then
 	
 #	PATH="${PATH}:${SCRIPTDIR}"
 	
-	CreateCertificate "$CertRemotePath"
+	CreateCertificate "$CertLocalPath"
 
 else # not at FNAL
 	
@@ -101,8 +125,10 @@ else # not at FNAL
 
 	LocalScriptDir="${SCRIPTDIR#${HOME}/}"
 
-	# call the equivalent script at remote site
-	ConnectFNAL exec bash -l "${LocalScriptDir}/${SCRIPTNAME}" "$@"
+	# call the equivalent script at remote site;
+	# ask to put the certificates under what we call here "remote" path
+	# (the receiving script -- above! -- will see it as local)
+	ConnectFNAL exec bash -l "${LocalScriptDir}/${SCRIPTNAME}" "$CertRemotePath" "$@"
 	LASTFATAL "Creation of certificate at remote site failed."
 
 	# copy back the certificates
@@ -112,4 +138,6 @@ else # not at FNAL
 	LASTFATAL "Failed to transfer certificates from remote site."
 
 fi
+
+PrintCertValidity "$CertLocalPath"
 
