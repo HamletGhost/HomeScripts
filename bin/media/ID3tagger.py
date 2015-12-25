@@ -232,6 +232,7 @@ class ProcessorClass:
 			  ( 'Year', ( 'year', 'date', ) ),
 			  ( 'Title', 'title' ),
 			  ( 'TrackNo', ( 'track', 'trackno' ) ),
+			  ( 'NTracks', ( 'ntracks', 'tracks' ) ),
 			  ):
 				
 				if isinstance(labels, basestring): labels = ( labels, )
@@ -293,8 +294,8 @@ class ProcessorClass:
 		try:
 			iTrack, nTracks = map(int, iTrack.split('/', 1))
 		except (ValueError, AttributeError, ):
-			nTracks = nElem
-		cmd.extend(( '--track', "%s/%d" % (str(iTrack), nTracks), ))
+			nTracks = item.get('NTracks', nElem)
+		cmd.extend(( '--track', "%s/%s" % (str(iTrack), str(nTracks)), ))
 		
 		for comment in item.get('Comments', []):
 			self.ValidateComment(comment)

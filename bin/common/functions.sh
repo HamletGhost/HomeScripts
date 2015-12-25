@@ -723,6 +723,86 @@ function chdir() {
 } # chdir()
 
 
+function canonical_path() {
+	#
+	# Usage:  canonical_path Path
+	#
+	# Prints a canonical version of the specified path.
+	# It does not turn the path from relative to absolute (see full_path)
+	#
+	
+	local Path="$1"
+	
+	# if the path is not just '/', remove any trailing '/'
+	while [[ "${Path: -1}" == '/' ]]; do
+		# short cut: if the path is root, we are done already
+		[[ "$Path" == '/' ]] && echo "/" && return 0
+		Path="${Path:0: -1}"
+	done
+	
+	local -i Parents=0 # parent directories that we are not given to see
+	local -a Dirs
+	local -i NDirs=0
+	local Name
+	
+	# analyse piece by piece
+	while [[ -n "$Path" ]] ; do
+		
+		# pick the first part of the path (up to the first '/' left);
+		# absolute paths, that start with '/', get this first name an empty one
+		Name="${Path%%/*}"
+		
+		# remove this part from the path (and also trailing '/')
+		Path="${Path#${Name}}"
+		while [[ "${Path:0:1}" == '/' ]] ; do
+			Path="${Path#/}"
+		done
+		case "$Name" in
+			( '.' ) ;;
+			( '..' )
+				if [[ $NDirs -gt 0 ]]; then
+					let --NDirs
+				else
+					let ++Parents
+				fi
+				;;
+			( * )
+				Dirs[NDirs++]="$Name"
+				;;
+		esac
+	done
+	
+	local FullPath
+	while [[ $((Parents--)) -gt 0 ]]; do
+		FullPath+="../"
+	done
+	for Name in "${Dirs[@]}" ; do
+		FullPath+="${Name}/"
+	done
+	echo "${FullPath%/}"
+	
+	return 0
+} # canonical_path()
+
+
+function full_path() {
+	#
+	# Usage:  full_path Path
+	#
+	# Prints a canonical version of the specified path.
+	# If relative, it's assumed to start from the current directory.
+	#
+	
+	local Path="$1"
+	
+	# if the path is relative, prepend the current directory
+	[[ "${Path:0:1}" != '/' ]] && Path="$(pwd)${Path:+"/${Path}"}"
+	
+	canonical_path "$Path"
+	
+} # full_path()
+
+
 function datetag() {
 	# parameters
 	

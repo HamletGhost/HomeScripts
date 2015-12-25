@@ -1,5 +1,5 @@
 # requires the ??-functions to be loaded
-[[ -n "$FUNCTIONS_SH_LOADED" ]] || echo "Warning: bash functions not loaded." >&2
+[[ -n "$FUNCTIONS_SH_LOADED" ]] || echo "Warning: bash functions not loaded. Some functions will be missing." >&2
 
 # common aliases
 alias du0="du -x --max-depth=0"
@@ -25,5 +25,7 @@ function chdirl() {
 	chdir "$Dir" && mkdir "logs"
 }
 
-function rl() { readlink -f "${1:-.}" ; }
+# function rl() { readlink -f "${1:-.}" ; }
+# full_path() is defined in functions.sh
+function rl() { full_path "$1" ; }
 
