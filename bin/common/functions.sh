@@ -229,7 +229,7 @@ function InsertPath() {
 			done
 			
 			[[ "${#WrittenItems[@]}" == 0 ]] || printf '%s' "$Separator"
-			printf '%s' $KnownItem"
+			printf '%s' "$KnownItem"
 			WrittenItems=( "${WrittenItems[@]}" "$KnownItem" )
 		done
 	else # append
