@@ -210,8 +210,8 @@ function InsertPath() {
 			
 			isFlagSet isKnown && isFlagUnset Move && continue
 			
-			[[ "${#WrittenItems[@]}" == 0 ]] || echo -n "$Separator"
-			echo -n "$Item"
+			[[ "${#WrittenItems[@]}" == 0 ]] || printf '%s' "$Separator"
+			printf '%s' "$Item"
 			WrittenItems=( "${WrittenItems[@]}" "$Item" )
 		done # items
 		local -i nAddedItems=${#WrittenItems[@]}
@@ -228,8 +228,8 @@ function InsertPath() {
 				[[ "${WrittenItems[iWrittenItem]}" == "$KnownItem" ]] && continue 2
 			done
 			
-			[[ "${#WrittenItems[@]}" == 0 ]] || echo -n "$Separator"
-			echo -n "$KnownItem"
+			[[ "${#WrittenItems[@]}" == 0 ]] || printf '%s' "$Separator"
+			printf '%s' $KnownItem"
 			WrittenItems=( "${WrittenItems[@]}" "$KnownItem" )
 		done
 	else # append
@@ -251,8 +251,8 @@ function InsertPath() {
 				done
 			fi
 			
-			[[ "${#WrittenItems[@]}" == 0 ]] || echo -n "$Separator"
-			echo -n "$KnownItem"
+			[[ "${#WrittenItems[@]}" == 0 ]] || printf '%s' "$Separator"
+			printf '%s' "$KnownItem"
 			WrittenItems=( "${WrittenItems[@]}" "$KnownItem" )
 		done
 		
@@ -277,13 +277,13 @@ function InsertPath() {
 				done
 			fi
 			
-			[[ "${#WrittenItems[@]}" == 0 ]] || echo -n "$Separator"
-			echo -n "$Item"
+			[[ "${#WrittenItems[@]}" == 0 ]] || printf '%s' "$Separator"
+			printf '%s' "$Item"
 			WrittenItems=( "${WrittenItems[@]}" "$Item" )
 		done
 	fi # prepend/append
 	
-	echo
+	printf "\n"
 	return 0
 } # InsertPath()
 
@@ -343,13 +343,13 @@ function DeletePath() {
 		done
 		
 		# use a separator if this is not the very first item we have
-		[[ "${#KnownItems[@]}" == 0 ]] || echo -n "$Separator"
+		[[ "${#KnownItems[@]}" == 0 ]] || printf '%s' "$Separator"
 		
-		echo -n "$ExistingItem"
+		printf '%s' "$ExistingItem"
 		
 		KnownItems=( "${KnownItems[@]}" "$ExistingItem" )
 	done # ( while )
-	echo
+	printf "\n"
 	return 0
 } # DeletePath()
 
@@ -390,13 +390,13 @@ function RemoveDuplicatesFromPath() {
 		done
 		
 		# use a separator if this is not the very first item we have
-		[[ "${#KnownItems[@]}" == 0 ]] || echo -n "$Separator"
+		[[ "${#KnownItems[@]}" == 0 ]] || printf '%s' "$Separator"
 		
-		echo -n "$Item"
+		printf '%s' "$Item"
 		
 		KnownItems=( "${KnownItems[@]}" "$Item" )
 	done # ( while )
-	echo
+	printf "\n"
 	return 0
 } # RemoveDuplicatesFromPath()
 
