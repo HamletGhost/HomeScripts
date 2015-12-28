@@ -10,8 +10,10 @@ alias du1="du -x -d1"
 alias du2="du -x -d2"
 
 if isBSD ; then
-  alias v="ls -Gal"
+  alias ls="ls -G"
+  alias v="ls -al"
 else
+  alias ls="ls --color=auto"
   alias v="ls --color=auto -alv"
 fi
 alias rgrep="grep -R"
