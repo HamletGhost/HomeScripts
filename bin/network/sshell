@@ -36,11 +36,11 @@ ssh_default_options=( '-X' )
 function help() {
 	cat <<-EOH
 	Operates on a remote server via SSH.
-	
+
 	Usage:  ${SCRIPTNAME}  [options] [--] [parameters]
-	
+
 	The script operates in one of the following modes, specified as options:
-	
+
 	--ssh [default]
 	    opens an iterative shell on the remote host
 	--read , -r , read , r
@@ -56,10 +56,10 @@ function help() {
 	    just prints the version numbre and exits
 	--help , -h , -?
 	    just prints this help message and exits
-	
+
 	Each mode can have its specific options, in addition to commonly accepted
 	ones:
-	
+
 	EOH
 	help_common
 } # help()
@@ -76,7 +76,7 @@ function help_common() {
 	    executes)
 	--quiet
 	    decreases the verbosity of the command
-	
+
 	SSH options:
 	--user=REMOTEUSER [${USER}]
 	    uses this user for remote log in
@@ -97,7 +97,7 @@ function help_common() {
 	    prepends PREFIX to the host name
 	--hostsuffix=SUFFIX
 	    appends SUFFIX to the host name
-	
+
 	Kerberos authentication options (see \`man 1 kinit\` for details):
 	--k5realm=KRB5REALM
 	--k5user=KRB5USER [as ASREMOTEUSER, or REMOTEUSER]
@@ -129,12 +129,12 @@ function help_common() {
 function help_help() {
 	cat <<-EOH
 	Mode: help
-	
+
 	  ${SCRIPTNAME}  <--help[=Mode]|-h|-?>
-	
+
 	Prints help about this script, or about its specified mode if Mode is
 	specified.
-	
+
 	EOH
 } # help_help()
 
@@ -142,11 +142,11 @@ function help_help() {
 function help_version() {
 	cat <<-EOH
 	Mode: version
-	
+
 	  ${SCRIPTNAME}  <--version|-V>
-	
+
 	Prints the version of this script.
-	
+
 	EOH
 } # help_version()
 
@@ -159,7 +159,7 @@ function help_read() {
 	    [--dest=DEST source [source ...]]
 	  ${SCRIPTNAME}  <--read|-r|read|r> [options] [--]
 	    source [source ...] [destination]
-	
+
 	Reads the specified remote files into the local host.
 	If a relative source path is specified, it is relative to the directory where
 	ssh lands (typically, user's home directory).
@@ -170,11 +170,11 @@ function help_read() {
 	In the second form, where no destination option is specified, the destination
 	for all the source files is the last parameter. If only one parameter is
 	present, it is interpreted as a source to be copied to the current directory.
-	
+
 	If the destination can be detected to be a directory, that directory is
 	created. A destination is detected as a directory if it is destination for
 	multiple sources or if its name ends in '/'.
-	
+
 	Read mode options:
 	--src=SOURCE
 	    specifies a remote source; alternative way to specify sources.
@@ -182,9 +182,9 @@ function help_read() {
 	    ssh lands (typically, user's home directory)
 	--dest=DESTDIR
 	    the directory in the local host where to copy the following sources
-	
+
 	In addition, the common options are accepted:
-	
+
 	EOH
 	help_common
 } # help_read()
@@ -198,7 +198,7 @@ function help_write() {
 	    [--dest=DEST source [source ...]]
 	  ${SCRIPTNAME}  <--write|-w|write|w> [options] [--]
 	    source [source ...] [destination]
-	
+
 	Writes the specified local files to the remote server.
 	Each destination option (below) refers to the following sources, up to the
 	next destination option.
@@ -208,7 +208,7 @@ function help_write() {
 	for all the source files is the last parameter. If only one parameter is
 	present, it is interpreted as a source to be copied to the directory where
 	ssh lands on the remote server (".", typically, user's home directory).
-	
+
 	Write mode options:
 	--src=SOURCE
 	    specifies a source; alternative way to specify sources
@@ -216,9 +216,9 @@ function help_write() {
 	    the directory under the remote host where to copy the following sources;
 	    if a relative path is specified, it is relative to the directory where
 	    ssh lands (typically, user's home directory)
-	
+
 	In addition, the common options are accepted:
-	
+
 	EOH
 	help_common
 } # help_write()
@@ -229,14 +229,14 @@ function help_exec() {
 	Mode: write
 	  ${SCRIPTNAME}  <--exec|-x|exec|x> [options]
 	    command [command arguments...]
-	
+
 	Executes the specified command in the remote shell, then returns.
-	
+
 	Execution mode options:
 	  no specific one
-	
+
 	In addition, the common options are accepted:
-	
+
 	EOH
 	help_common
 } # help_exec()
@@ -246,14 +246,14 @@ function help_ping() {
 	cat <<-EOH
 	Mode: ping
 	  ${SCRIPTNAME}  <--ping|-p|ping|p> [options] [--] [ping options]
-	
+
 	Executes ping on the server. Arguments are passed to ping.
-	
+
 	Ping mode options:
 	  no specific one
-	
+
 	The common options are accepted:
-	
+
 	EOH
 } # help_ping()
 
@@ -325,6 +325,23 @@ function DUMPVARS() {
 
 function MSG() { isFlagSet QUIET || echo "$@" ; }
 
+function FileFromDescriptor() {
+	# Prints the file associated to the descriptor
+	local -i Descriptor="$1"
+
+	if [[ -d '/proc' ]]; then
+		# lucky us, there is procfs
+		local FD="/proc/${$}/fd/0"
+		[[ -e "$FD" ]] || return 1 # but there is no such file descriptor!
+		readlink "$FD"
+		return 0
+	else
+		case "$Descriptor" in
+			( * ) return 1 ;;
+		esac
+	fi
+} # FileFromDescriptor()
+
 
 function SetOperationMode() {
 	local Mode="$1"
@@ -360,16 +377,16 @@ function RedirectOutput() {
 	local -i FileDescriptor="$1"
 	local RedirectTo="$2"
 	[[ -n "$RedirectTo" ]] || return 1
-	
+
 	local ProcHandle="/proc/$$/fd/${FileDescriptor}"
 	local OldOutput
 	[[ -h "$ProcHandle" ]] && OldOutput="$(readlink "$ProcHandle")"
-	
+
 	local res=0
 	exec "${FileDescriptor}>" "$RedirectTo"
 	res=$?
 	[[ $res == 0 ]] || return $res
-	
+
 	echo "$OldOutput"
 	return 0
 } # RedirectOutput()
@@ -397,40 +414,52 @@ function Execute() {
 		esac
 		shift
 	done
-	
+
 	local -a Command=( "$@" )
 	local -i ExitCode=0
-	
+
 	# print the command being run
 	if isFlagSet FAKE || isFlagSet VERBOSE || isDebugging ; then
 		echo "CMD: ${Command[@]} ${StdIn:+"0< '${StdIn}'"} ${StdOut:+"1> '${StdOut}'"} ${StdErr:+"2> '${StdErr}'"}"
 	fi
-	
+
 	# run the command
 	if isFlagUnset FAKE ; then
 		# establish redirections
 		local OldStdIn OldStdOut OldStdErr
 		if [[ -n "$StdIn" ]]; then
-			OldStdIn="$(readlink "/proc/$$/fd/0")"
-			DBGN 3 "Saving standard input: '${OldStdIn}'"
-			exec 0< "$StdIn"
+			OldStdIn="$(FileFromDescriptor 0)"
+			if [[ $? == 0 ]]; then
+				DBGN 3 "Saving standard input: '${OldStdIn}'"
+				exec 0< "$StdIn"
+			else
+				DBGN 3 "Not muting STDIN since we can't detect where it is directed"
+			fi
 		fi
 		if [[ -n "$StdOut" ]]; then
-			OldStdOut="$(readlink "/proc/$$/fd/1")"
-			DBGN 3 "Saving standard output: '${OldStdOut}'"
-			exec 1> "$StdOut"
+			OldStdOut="$(FileFromDescriptor 1)"
+			if [[ $? == 0 ]]; then
+				DBGN 3 "Saving standard output: '${OldStdOut}'"
+				exec 1> "$StdOut"
+			else
+				DBGN 3 "Not muting STDOUT since we can't detect where it is directed"
+			fi
 		fi
 		if [[ -n "$StdErr" ]]; then
-			OldStdErr="$(readlink "/proc/$$/fd/2")"
-			DBGN 3 "Saving standard error: '${OldStdErr}'"
-			exec 2> "$StdErr"
+			OldStdErr="$(FileFromDescriptor 2)"
+			if [[ $? == 0 ]]; then
+				DBGN 3 "Saving standard error: '${OldStdErr}'"
+				exec 2> "$StdErr"
+			else
+				DBGN 3 "Not muting STDERR since we can't detect where it is directed"
+			fi
 		fi
-		
+
 		"${Command[@]}"
 		ExitCode=$?
 		DBG "Exit code for '${Command[0]}': ${ExitCode}"
-		
-		# reset redirections
+
+		# reset redirections; plenty of bugs if procfs is not availableß
 		if [[ -n "$OldStdErr" ]]; then
 			exec 2> "$OldStdErr"
 			DBGN 3 "Standard error restored to '${OldStdErr}'"
@@ -443,9 +472,9 @@ function Execute() {
 			exec 0< "$OldStdIn"
 			DBGN 3 "Standard input restored to '${OldStdIn}'"
 		fi
-		
+
 	fi
-	
+
 	return $ExitCode
 } # Execute()
 
@@ -470,25 +499,25 @@ function parse_options_common() {
 	local -i iParam=$(( $1 - 1 ))
 	shift
 	local -i NDigested=0
-	
+
 	while [[ $iParam -lt $# ]]; do
 		let ++iParam
 		local Param="${!iParam}"
-		
+
 		DBGN 3 "  is '${Param}' a common option?"
-		
+
 		# by default, assume we swallow one parameter only
 		let ++NDigested
-		
+
 		case "$Param" in
-			
+
 			# verbosity options
 			( "--fake" )          FAKE=1 ;;
 			( "--debug" )         DEBUG=1 ;;
 			( "--debug="* )       DEBUG="${Param#--*=}" ;;
 			( "--verbose" )       let ++VERBOSE ;;
 			( "--quiet" )         let ++QUIET ;;
-			
+
 			# SSH options
 			( "--user="* )        RemoteUser="${Param#--*=}" ;;
 			( "--asuser="* )      AsRemoteUser="${Param#--*=}" ;;
@@ -501,7 +530,7 @@ function parse_options_common() {
 			( "--autohost="* )    AutoHost=( "${AutoHost[@]}" "${Param#--*=}" ) ;;
 			( "--hostprefix="* )  RemoteHostPrefix="${Param#--*=}" ;;
 			( "--hostsuffix="* )  RemoteHostSuffix="${Param#--*=}" ;;
-			
+
 			# Kerberos options
 			( "--k5realm="* )     KerberosRealm="${Param#--*=}" ;;
 			( "--k5user="* )      KerberosUser="${Param#--*=}" ;;
@@ -523,20 +552,20 @@ function parse_options_common() {
 
 
 function parse_options_help() {
-	
+
 	local -i iParam=$(( $1 - 1 ))
 	shift
 	local -i NDigested=0
-	
+
 	while [[ $iParam -lt $# ]]; do
 		let ++iParam
 		local Param="${!iParam}"
-		
+
 		# by default, assume we swallow one parameter only
 		let ++NDigested
-		
+
 		DBGN 3 "  is '${Param}' a ${MODE} option?"
-		
+
 		case "$Param" in
 			( '--help' | '-h' | '-?' ) HelpTopics=( "${HelpTopics[@]}" 'help' ) ;;
 			( '--version' | '-V' )     HelpTopics=( "${HelpTopics[@]}" 'version' ) ;;
@@ -544,7 +573,7 @@ function parse_options_help() {
 			( '--write' | '-w' | 'write' | 'w' ) HelpTopics=( "${HelpTopics[@]}" 'write' ) ;;
 			( '--read' | '-r' | 'read' | 'r' )   HelpTopics=( "${HelpTopics[@]}" 'read' ) ;;
 			( '--exec' | '-x' | 'exec' | 'x' ) HelpTopics=( "${HelpTopics[@]}" 'exec' ) ;;
-			
+
 			( * )
 				[[ "$MODE" == 'help' ]] && FATAL 1 "No help available on '${Param}'"
 				return $(( NDigested - 1 ))
@@ -558,33 +587,33 @@ function parse_options_help() {
 function parse_options_ssh() {
 	local -i iParam=$(( $1 - 1 ))
 	shift
-	
+
 	local Param="${!iParam}"
-	
+
 	DBGN 3 "  is '${Param}' a ${MODE} option?"
-	
+
 	# accept all the options as SSH options
 	ssh_options=( "${ssh_options[@]}" "$Param" )
-	
+
 	return 1
 } # parse_options_ssh()
 
 
 function parse_options_write() {
-	
+
 	local -i iParam=$(( $1 - 1 ))
 	shift
 	local -i NDigested=0
-	
+
 	while [[ $iParam -lt $# ]]; do
 		let ++iParam
 		local Param="${!iParam}"
-		
+
 		DBGN 3 "  is '${Param}' a ${MODE} option?"
-		
+
 		# by default, assume we swallow one parameter only
 		let ++NDigested
-		
+
 		if [[ "${Param:0:1}" == '-' ]] && isFlagUnset NoMoreOptions ; then
 			case "$Param" in
 				( "--dest="* )
@@ -602,7 +631,7 @@ function parse_options_write() {
 			Destinations=( "${Destinations[@]}" "$CurrentDestination" )
 			Sources=( "${Sources[@]}" "$Param" )
 		fi
-		
+
 		break
 	done
 	return $NDigested
@@ -611,20 +640,20 @@ function parse_options_write() {
 function parse_options_read() { parse_options_write "$@" ; }
 
 function parse_options_exec() {
-	
+
 	local -i iParam=$(( $1 - 1 ))
 	shift
 	local -i NDigested=0
-	
+
 	while [[ $iParam -lt $# ]]; do
 		let ++iParam
 		local Param="${!iParam}"
-		
+
 		DBGN 3 "  is '${Param}' a ${MODE} option?"
-		
+
 		# by default, assume we swallow one parameter only
 		let ++NDigested
-		
+
 		if [[ "${Param:0:1}" == '-' ]] && isFlagUnset NoMoreOptions ; then
 			case "$Param" in
 				( * )
@@ -634,27 +663,27 @@ function parse_options_exec() {
 			NoMoreOptions=1
 			Command=( "${Command[@]}" "$Param" )
 		fi
-		
+
 		break
 	done
 	return $NDigested
 } # parse_options_exec()
 
 function parse_options_ping() {
-	
+
 	local -i iParam=$(( $1 - 1 ))
 	shift
 	local -i NDigested=0
-	
+
 	while [[ $iParam -lt $# ]]; do
 		let ++iParam
 		local Param="${!iParam}"
-		
+
 		DBGN 3 "  is '${Param}' a ${MODE} option?"
-		
+
 		# by default, assume we swallow one parameter only
 		let ++NDigested
-		
+
 		if [[ "${Param:0:1}" == '-' ]] && isFlagUnset NoMoreOptions ; then
 			case "$Param" in
 				( * )
@@ -664,7 +693,7 @@ function parse_options_ping() {
 			NoMoreOptions=1
 			Options=( "${Options[@]}" "$Param" )
 		fi
-		
+
 		break
 	done
 	return $NDigested
@@ -674,14 +703,14 @@ function parse_options_ping() {
 function set_environment() {
 	# Sets the environment for the specified mode
 	local Mode="$1"
-	
+
 	local SetEnvironmentProc="set_environment_${Mode}"
-	
+
 	DBGN 1 "Setting environment for mode '${Mode}'"
-	
+
 	# start from a default environment
 	set_default_environment
-	
+
 	declare -f "$SetEnvironmentProc" >& /dev/null
 	if [[ $? != 0 ]]; then
 		DBGN 2 "No specific environment found."
@@ -689,22 +718,22 @@ function set_environment() {
 	fi
 
 	"$SetEnvironmentProc"
-	
+
 } # set_environment()
 
 function set_default_environment() {
 	# sets variebles for a generic environment
-	
+
 	KerberosNeeded=1
 
 } # set_default_environment()
 
 function set_environment_ping() {
 	DBGN 2 "Setting the environment for ping mode."
-	
+
 	# Kerberos is not needed to ping the server:
 	KerberosNeeded=0
-	
+
 } # set_environment_ping()
 
 
@@ -731,17 +760,17 @@ declare -i iParam=0 nParams=$#
 while [[ $iParam -lt $nParams ]]; do
 	let ++iParam
 	Param="${!iParam}"
-	
+
 	DBGN 2 "Parsing parameter: '${Param}'"
-	
+
 	if isFlagUnset NoMoreOptions ; then
-		
+
 		# is this the marker of no more options?
 		if [[ "$Param" == '--' ]] || [[ "$Param" == '-' ]]; then
 			NoMoreOptions=1
 			continue
 		fi
-		
+
 		# if mode has not been set yet, give it a try
 		if [[ -z "$MODE" ]]; then
 			case "$Param" in
@@ -755,7 +784,7 @@ while [[ $iParam -lt $nParams ]]; do
 			esac
 			[[ -n "$MODE" ]] && continue
 		fi
-		
+
 		# special option (includes a mode set):
 		case "$Param" in
 			( '--help='* )
@@ -764,7 +793,7 @@ while [[ $iParam -lt $nParams ]]; do
 				continue
 				;;
 		esac
-		
+
 		# parse the common options
 		parse_options_common "$iParam" "$@"
 		HandledParameters=$?
@@ -774,7 +803,7 @@ while [[ $iParam -lt $nParams ]]; do
 			continue
 		fi
 	fi
-	
+
 	# mode-specific options (valid only if a mode is specified)
 	if [[ -n "$MODE" ]]; then
 		parse_options_${MODE} "$iParam" "$@"
@@ -785,7 +814,7 @@ while [[ $iParam -lt $nParams ]]; do
 			continue
 		fi
 	fi
-	
+
 done
 
 isFlagSet NoDefaultSSHoptions || ssh_options=( "${ssh_default_options[@]}" "${ssh_options[@]}" )
@@ -890,15 +919,15 @@ set_environment "$MODE"
 if isFlagUnset KerberosNeeded ; then
 	DBGN 1 "No Kerberos authentication is needed."
 elif [[ -n "$KerberosRealm" ]]; then
-	
-	
+
+
 	declare -i GotKerberosTicket=0
-	
+
 	KerberosUserInstance="${KerberosUser}${KerberosInstance:+/${KerberosInstance}}"
 	KerberosFullUser="${KerberosUserInstance}@${KerberosRealm}"
-	
+
 	DBGN 1 "Preparing for Kerberos authentication as: '${KerberosFullUser}'"
-	
+
 	# first try to renew an existing ticket
 	if isFlagUnset GotKerberosTicket && isFlagSet KerberosRenewTicket ; then
 		DBGN 2 " - attempt to renew any existing ticket"
@@ -906,26 +935,26 @@ elif [[ -n "$KerberosRealm" ]]; then
 	else
 		DBGN 2 " (no attempt to renew any existing ticket)"
 	fi
-	
+
 	if isFlagUnset GotKerberosTicket && isFlagSet KerberosNewTicket ; then
-		
+
 		DBGN 2 " - attempt to obtain a new ticket"
 		declare -a KerberosOptions=(
 			${KerberosTicketLifetime:+"-l${KerberosTicketLifetime}"}
 			${KerberosTicketRenewTime:+"-r${KerberosTicketRenewTime}"}
 		)
 		isFlagSet isNAT && KerberosOptions=( "${KerberosOptions[@]}" '-n' )
-		
+
 		echo "Getting a new Kerberos5 ticket: prepare your password."
 		Execute $kinit "${KerberosOptions[@]}" "$KerberosFullUser" && GotKerberosTicket=1
 	else
 		DBGN 2 " (no attempt to obtain a new ticket)"
 	fi
-	
+
 	if isFlagUnset GotKerberosTicket ; then
 		ERROR "Couldn't get a new Kerberos5 ticket. Hope there is a valid, existing one."
 	fi
-	
+
 else
 	DBGN 1 "No Kerberos authentication was requested."
 fi
@@ -941,7 +970,7 @@ case "$MODE" in
 		Execute $ssh -l "$AsRemoteUser" "${ssh_options[@]}" "$RemotePath"
 		ExitCode=$?
 		;;
-	
+
 	#############################################################################
 	( 'read' | 'write' )
 		# if no destination was ever explicitly specified, assume that the latest
@@ -958,23 +987,23 @@ case "$MODE" in
 				DefaultDestination='.'
 			fi
 		fi
-		
+
 		[[ $nSources == 0 ]] && FATAL 1 "In ${MODE} mode, at least one source must be specified!"
-		
+
 		declare -i nErrors=0
 		declare -i iSource=0
 		while [[ $iSource -lt $nSources ]] ; do
 			# accumulate sources to be copied into the same destination
 			declare -a TheseSources=( )
-			
+
 			declare ThisDestination="${Destinations[iSource]:-${DefaultDestination}}"
 			while [[ "${Destinations[iSource]:-${DefaultDestination}}" == "$ThisDestination" ]]; do
 				TheseSources=( "${TheseSources[@]}" "${Sources[iSource]}" )
-				
+
 				let ++iSource
 				[[ $iSource -ge $nSources ]] && break
 			done
-			
+
 			# -r: recursive directory copy; -p: preserve attributes
 			if [[ "$MODE" == 'write' ]]; then
 				FullDestination="${RemoteFullPath}:${ThisDestination}"
@@ -998,19 +1027,19 @@ case "$MODE" in
 		done
 		exit $nErrors
 		;;
-	
+
 	#############################################################################
 	( 'exec' )
 		Execute $ssh -l "$RemoteUser" "${ssh_options[@]}" "$RemotePath" "${Command[@]}"
 		ExitCode=$?
 		;;
-	
+
 	#############################################################################
 	( 'ping' )
 		Execute $ping "${Options[@]}" -- "$RemotePath"
 		ExitCode=$?
 		;;
-	
+
 	#############################################################################
 	( * ) FATAL 1 "Unknown SSH operation '${MODE}'." ;;
 esac
