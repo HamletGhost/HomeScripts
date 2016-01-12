@@ -83,6 +83,8 @@ function help_common() {
 	--asuser=ASREMOTEUSER [as REMOTEUSER]
 	    uses this user for remote log in, but still uses REMOTEUSER above in the
 	    authentication (see below)
+	--nouser
+	    do not specify the user (ASREMOTEUSER above); count on SSH to know better
 	--host=HOSTNAME
 	    the name of the SSH server to be contacted
 	--domain=DOMAIN
@@ -521,6 +523,7 @@ function parse_options_common() {
 			# SSH options
 			( "--user="* )        RemoteUser="${Param#--*=}" ;;
 			( "--asuser="* )      AsRemoteUser="${Param#--*=}" ;;
+			( "--nouser" )        NoAsRemoteUser=1 ;;
 			( "--server="* | '--host='* )
 			                      RemoteHost="${Param#--*=}" ;;
 			( "--domain="* )      RemoteDomain="${Param#--*=}" ;;
@@ -722,10 +725,11 @@ function set_environment() {
 } # set_environment()
 
 function set_default_environment() {
-	# sets variebles for a generic environment
+	# sets variables for a generic environment
 
 	KerberosNeeded=1
-
+	NoAsRemoteUser=0
+	
 } # set_default_environment()
 
 function set_environment_ping() {
@@ -902,11 +906,13 @@ DBGN 3 "Complete host path:   '${RemotePath}'"
 if [[ -n "$AsRemoteUser" ]]; then
 	: ${KerberosInstance:="$AsRemoteUser"}
 	: ${KerberosUser:="$RemoteUser"}
+elif isFlagSet NoAsRemoteUser ; then
+	AsRemoteUser=''
 else
 	AsRemoteUser="$RemoteUser"
 fi
 
-declare RemoteFullPath="${AsRemoteUser}@${RemotePath}"
+declare RemoteFullPath="${AsRemoteUser:+${AsRemoteUser}@}${RemotePath}"
 DBGN 2 "Complete user path:   '${RemoteFullPath}'"
 
 set_environment "$MODE"
@@ -967,7 +973,7 @@ declare -i ExitCode=0
 case "$MODE" in
 	#############################################################################
 	( 'ssh' )
-		Execute $ssh -l "$AsRemoteUser" "${ssh_options[@]}" "$RemotePath"
+		Execute $ssh ${AsRemoteUser:+-l "$AsRemoteUser"} "${ssh_options[@]}" "$RemotePath"
 		ExitCode=$?
 		;;
 
