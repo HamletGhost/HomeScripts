@@ -1,0 +1,25 @@
+# only use two spurious environment variables here: "DoSetup_CVMFS" and "DoSetupWrapper_CVMFS"
+function DoSetup_CVMFS() {
+	local -a Mounts
+	Mounts=( fermilab.opensciencegrid.org )
+	local Mount
+	local -i nErrors=0
+	for Mount in "${Mounts[@]}" ; do
+		local MountPoint="/cvmfs/${Mount}"
+		echo "Enabling ${Mount}"
+		sudo /sbin/mount -t cvmfs "$Mount" "$MountPoint" || let ++nErrors
+	done
+	return $nErrors
+} # DoSetup_CVMFS()
+
+function DoSetupWrapper_CVMFS() {
+	# wrapper cleaning the environment we use
+	local -i res=0
+	DoSetup_CVMFS "$@"
+	res=$?
+	unset DoSetup_CVMFS DoSetupWrapper_CVMFS
+	return $res	
+} # DoSetupWrapper_CVMFS()
+
+DoSetupWrapper_CVMFS
+
