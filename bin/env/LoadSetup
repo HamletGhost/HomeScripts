@@ -4,7 +4,7 @@
 
 function LoadSetup_DetectROOTscriptDir() {
 	local Dir="$(dirname -- "${BASH_SOURCE:-${HOME}/bin/Setups}")"
-	[[ "${Dir:0:2}" == "./" ]] && Dir="$(pwd)/${Dir}"
+	[[ "${Dir:0:1}" != "/" ]] && Dir="$(pwd)/${Dir}"
 	while [[ ! -d "${Dir}/Setups" ]]; do
 		Dir="$(dirname "$Dir")"
 		[[ "$Dir" == "/" ]] && return 3
@@ -21,26 +21,96 @@ fi
 unset -f LoadSetup_DetectROOTscriptDir
 
 function Setup() {
+	OPTIND=1
+	local Option
+	local Indent=''
+	local Mode=''
+	local -i QuietLevel=1
+	while getopts 'i:nq:Qh?i-' Option ; do
+		case "$Option" in
+			( 'i' ) Indent="$OPTARG" ;;
+			( 'n' ) Mode='query' ;;
+			( 'q' ) QuietLevel="$OPTARG" ;;
+			( 'Q' ) QuietLevel=0 ;;
+			( '-' ) let ++OPTIND ; break ;;
+			( 'h' | '?' ) Mode='help' ;;
+		esac
+	done
+	# remove the options from the positional arguments:
+	shift $((OPTIND - 1))
+	
+	if [[ "$Mode" == 'help' ]]; then
+		cat <<-EOH
+		
+		Runs a setup script.
+		
+		Usage:  ${FUNCNAME[0]}  [options]  SetupFile
+		
+		Setup files are searched in the directories under the root script directory:
+		 - <ROOT_SCRIPTS_DIR>/ExtraSetups/<SetupFile>   # customized setups
+		 - <ROOT_SCRIPTS_DIR>/Setups/<SetupFile>        # distributed setups
+		 - <ROOT_SCRIPTS_DIR>/<SetupFile>/setup         # more complex setups
+		The directory <ROOT_SCRIPTS_DIR> is determined on startup and it is currently:
+		'${ROOT_SCRIPTS_DIR}'
+		
+		Options:
+		    -n
+		        query mode: returns a non-zero exit code if setup file was not found
+		    -q LEVELS
+		        a quietness level passed to the setup scripts; if LEVELS is non-positive,
+		        the Setup output is also affected
+		    -Q
+		        quiet mode: output on screen reduced (equivalent to "-q 0")
+		    -i INDENT
+		        use INDENT as string for output indentation
+		    -h , -?
+		        show this usage message
+		
+		EOH
+		return
+	fi
+	
 	local Package="$1"
-	local Indent="$2" # cosmetic
-	local -i Quiet="${3:-0}"
+	shift
+	if [[ $# -gt 1 ]]; then
+		echo "ERROR (non-fatal): extra arguments in Setup call ($@)" >&2
+	fi
 
-	local SetupScript
-	for SetupScript in \
+	local SetupScript=''
+	local CandidateScript
+	for CandidateScript in \
 	  "${ROOT_SCRIPTS_DIR}/ExtraSetups/${Package}" \
 	  "${ROOT_SCRIPTS_DIR}/Setups/${Package}" \
 	  "${ROOT_SCRIPTS_DIR}/${Package}/setup"
 	do
-		[[ -r "$SetupScript" ]] || continue
+		[[ -r "$CandidateScript" ]] || continue
+		SetupScript="$CandidateScript"
+	done
+
+	if [[ -n "$SetupScript"	]]; then
 		local TargetSetupScript="$SetupScript"
 		local SetupDir="$(dirname "$TargetSetupScript")"
 		local SetupScriptName="$(basename "$TargetSetupScript")"
-		[[ $Quiet -le 0 ]] && echo "${Indent}Setup (${SetupScriptName}) from '${SetupDir}'"
+	fi
+	if [[ $Quiet -gt 0 ]]; then
+		if [[ -n "$SetupScript" ]]; then
+			echo "${Indent}Setup (${SetupScriptName}) from '${SetupDir}'"
+		else
+			echo "${Indent}Setup for '${Package}' not found!" >&2
+		fi
+	fi
+	if [[ "$Mode" == "query" ]]; then
+		[[ -r "$SetupScript" ]]
+		return	
+	fi
+	
+	# we have the script, and we want to source it!
+	if [[ -r "$SetupScript" ]]; then
 		local CWD="$(pwd)"
 		cd "$SetupDir"
 		shift
 		local ReturnCode
-		if [[ $Quiet -le 1 ]]; then
+		if [[ $Quiet -gt 0 ]]; then
 			source "./${SetupScriptName}" "$@"
 		else
 			source "./${SetupScriptName}" "$@" > /dev/null
@@ -48,13 +118,14 @@ function Setup() {
 		ReturnCode=$?
 		[[ "$(pwd)" == "$SetupDir" ]] && cd "$CWD"
 		return $ReturnCode
-	done
-	# fallback on an existing setup (e.g. UPS)
-	[[ $Quiet -le 0 ]] && echo "${Indent}setup $@"
-	if [[ $Quiet -le 1 ]]; then
-		setup "$@"
 	else
-		setup "$@" > /dev/null
+		# fallback on an existing setup (e.g. UPS)
+		[[ $Quiet -gt 0 ]] && echo "${Indent}setup $@"
+		if [[ $Quiet -gt 0 ]]; then
+			setup "$Package" "$@"
+		else
+			setup "$Package" "$@" > /dev/null
+		fi
 	fi
 } # Setup()
 
