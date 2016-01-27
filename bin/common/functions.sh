@@ -721,6 +721,7 @@ function chdir() {
 	mkdir -p "$1"
 	cd "$1"
 } # chdir()
+export -f chdir
 
 
 function canonical_path() {
@@ -826,6 +827,7 @@ function canonical_path() {
 	
 	return 0
 } # canonical_path()
+export -f canonical_path
 
 
 function full_path() {
@@ -872,6 +874,7 @@ function full_path() {
 	canonical_path "${PassArguments[@]}" -- "$Path"
 	
 } # full_path()
+export -f full_path
 
 
 function datetag() {
@@ -930,4 +933,4 @@ function datetag() {
 	echo "${MAINDATE}${NANOSECONDS:0:${SECONDFRACTION}}"
 
 } # datetag()
-
+export -f datetag
