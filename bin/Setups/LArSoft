@@ -10,7 +10,11 @@ do
 	[[ -d "${LARSCRIPTDIR}/setup" ]] && break
 done
 if [[ -x "${LARSCRIPTDIR}/setup_scripts.sh" ]]; then
+	
+	[[ "$(uname)" == 'Darwin' ]] && Setup HomeBrew
+	
 	source "${LARSCRIPTDIR}/setup_scripts.sh"
 else
+	unset LARSCRIPTDIR
 	ERROR "LArSoft script directory not found."
 fi
