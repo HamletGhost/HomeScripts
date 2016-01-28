@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Prints the path to the specified destination.
 # Source this script to define a 'goto' function automatically going where asked
@@ -402,6 +402,8 @@ if [[ "$(basename -- "$0")" == "DirMap" ]]; then
 		LoadDefaultEntries
 		
 		local BaseDir="$(dirname "$BASH_SOURCE")"
+		# make the path absolute and without '.' and '..' elements
+		declare -F canonical_path >& /dev/null && BaseDir="$(canonical_path -a "$BaseDir")"
 		local ParentBaseDir="$(dirname "$BaseDir")"
 		local -a SourceDirs=(
 			"${BaseDir}/params/dirmap.d"
@@ -445,8 +447,9 @@ if [[ "$(basename -- "$0")" == "DirMap" ]]; then
 	[[ "$Keyword" == "$1" ]] || ExtraPath="/${1#*/}"
 	
 	ReloadDirMaps
+	
 	declare Path
-	Path="$(ParsePaths "$Keyword")"
+	Path="$(set +x ; ParsePaths "$Keyword")"
 	ExitCode=$?
 	if [[ $ExitCode != 0 ]]; then
 		echo "Path to '${Keyword}' not known." >&2
@@ -499,4 +502,3 @@ else
 	complete -F _BashCompletion_DirMap DirMap goto jumpto
 	
 fi
-
