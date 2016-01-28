@@ -732,13 +732,14 @@ function canonical_path() {
 	# It does not turn the path from relative to absolute (see full_path)
 	#
 	local Option
-	local -i FollowLinks=0 DoHelp=0
+	local -i FollowLinks=0 AbsolutePath=0 DoHelp=0
 	OPTIND=1
-	while getopts "hf-" Option ; do
+	while getopts "afh?-" Option ; do
 		case "$Option" in
 			( 'f' ) FollowLinks=1 ;;
+			( 'a' ) AbsolutePath=1 ;;
 			( 'h' ) DoHelp=1 ;;
-			( '-' ) break ;;
+			( '?' | '-' ) break ;;
 		esac
 	done
 	shift $((OPTIND - 1))
@@ -753,13 +754,18 @@ function canonical_path() {
 		
 		Options:
 		    -f
-		        follow symbolic links; the final path will contain no symbolic link 
+		        follow symbolic links; the final path will contain no symbolic link
+		    -a
+		        force an absolute path, completing relative paths with the current directory
 		
 		EOH
 		return 0
 	fi
 	
 	local Path="$1"
+	
+	# make path absolute if requested
+	[[ "$AbsolutePath" != 0 ]] && [[ "${Path:0:1}" != '/' ]] && Path="$(pwd)${Path:+/${Path}}"
 	
 	# if the path is not just '/', remove any trailing '/'
 	while [[ "${Path: -1}" == '/' ]]; do
@@ -840,9 +846,9 @@ function full_path() {
 	local -i DoHelp=0
 	local -a PassArguments
 	OPTIND=1
-	while getopts "fh-" Option ; do
+	while getopts "fh?-" Option ; do
 		case "$Option" in
-			( 'h' ) DoHelp=1 ;;
+			( 'h' | '?' ) DoHelp=1 ;;
 			( 'f' ) PassArguments=( "${PassArguments[@]}" "-${Option}" ) ;;
 			( '-' ) break ;;
 		esac
@@ -867,11 +873,7 @@ function full_path() {
 		return 0
 	fi
 	
-	
-	# if the path is relative, prepend the current directory
-	[[ "${Path:0:1}" != '/' ]] && Path="$(pwd)${Path:+"/${Path}"}"
-	
-	canonical_path "${PassArguments[@]}" -- "$Path"
+	canonical_path "${PassArguments[@]}" -a -- "$Path"
 	
 } # full_path()
 export -f full_path
