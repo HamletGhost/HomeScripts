@@ -1,5 +1,7 @@
 # set up the LArSoft general environment
 
+[[ "$(uname)" == "Darwin" ]] && Setup HomeBrew
+
 # it's hard to figure out where the scripts directory is
 # without any clue; I am hard-coding directories here
 for LARSCRIPTDIR in \
