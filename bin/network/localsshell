@@ -1,4 +1,4 @@
 #!/bin/bash
 
 # sourcing is important to have the script name propagated
-source sshell --autohost='localsshell' --domain='thebard.net' "$@"
+source sshell --autohost='localsshell' --nouser --domain='thebard.net' "$@"

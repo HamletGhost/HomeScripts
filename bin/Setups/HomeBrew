@@ -1,1 +1,3 @@
 ConfigureProgramDirs /Users/petrillo/homebrew
+export HOMEBREW_CASK_OPTS="--appdir=${HOME}/Applications --caskroom=${HOME}/opt/Caskroom"
+

@@ -721,6 +721,7 @@ function chdir() {
 	mkdir -p "$1"
 	cd "$1"
 } # chdir()
+export -f chdir
 
 
 function canonical_path() {
@@ -730,8 +731,41 @@ function canonical_path() {
 	# Prints a canonical version of the specified path.
 	# It does not turn the path from relative to absolute (see full_path)
 	#
+	local Option
+	local -i FollowLinks=0 AbsolutePath=0 DoHelp=0
+	OPTIND=1
+	while getopts "afh?-" Option ; do
+		case "$Option" in
+			( 'f' ) FollowLinks=1 ;;
+			( 'a' ) AbsolutePath=1 ;;
+			( 'h' ) DoHelp=1 ;;
+			( '?' | '-' ) break ;;
+		esac
+	done
+	shift $((OPTIND - 1))
+	
+	if [[ "$DoHelp" != 0 ]]; then
+		cat <<-EOH
+		Prints a canonical version of the specified path.
+		
+		Usage: canonical_path [options] [--] Path
+		
+		Relative paths are not turned into absolute (see full_path for that).
+		
+		Options:
+		    -f
+		        follow symbolic links; the final path will contain no symbolic link
+		    -a
+		        force an absolute path, completing relative paths with the current directory
+		
+		EOH
+		return 0
+	fi
 	
 	local Path="$1"
+	
+	# make path absolute if requested
+	[[ "$AbsolutePath" != 0 ]] && [[ "${Path:0:1}" != '/' ]] && Path="$(pwd)${Path:+/${Path}}"
 	
 	# if the path is not just '/', remove any trailing '/'
 	while [[ "${Path: -1}" == '/' ]]; do
@@ -744,6 +778,8 @@ function canonical_path() {
 	local -a Dirs
 	local -i NDirs=0
 	local Name
+	
+	local MergedPath=""
 	
 	# analyse piece by piece
 	while [[ -n "$Path" ]] ; do
@@ -762,14 +798,28 @@ function canonical_path() {
 			( '..' )
 				if [[ $NDirs -gt 0 ]]; then
 					let --NDirs
+					MergedPath="${MergedPath%/*/}/"
 				else
 					let ++Parents
 				fi
 				;;
 			( * )
 				Dirs[NDirs++]="$Name"
+				MergedPath+="${Name}/"
 				;;
 		esac
+		if [[ "$FollowLinks" != 0 ]] && [[ -n "$MergedPath" ]] && [[ "$MergedPath" != "/" ]] && [[ -h "${MergedPath%/}" ]] ; then
+			# restart from scratch...
+			local NewPath
+			NewPath="$(readlink "${MergedPath%/}")"
+			if [[ "${NewPath:0:1}" != "/" ]]; then
+				local LinkDirName="$(dirname "$MergedPath")"
+				[[ -n "$LinkDirName" ]] && NewPath="${LinkDirName%/}/${NewPath}"
+			fi
+			[[ -n "$Path" ]] && NewPath+="/${Path}"
+			canonical_path -f -- "$NewPath"
+			return
+		fi 
 	done
 	
 	local FullPath
@@ -783,6 +833,7 @@ function canonical_path() {
 	
 	return 0
 } # canonical_path()
+export -f canonical_path
 
 
 function full_path() {
@@ -791,16 +842,41 @@ function full_path() {
 	#
 	# Prints a canonical version of the specified path.
 	# If relative, it's assumed to start from the current directory.
-	#
+	local Option
+	local -i DoHelp=0
+	local -a PassArguments
+	OPTIND=1
+	while getopts "fh?-" Option ; do
+		case "$Option" in
+			( 'h' | '?' ) DoHelp=1 ;;
+			( 'f' ) PassArguments=( "${PassArguments[@]}" "-${Option}" ) ;;
+			( '-' ) break ;;
+		esac
+	done
 	
-	local Path="$1"
+	local Path="${!OPTIND}"
 	
-	# if the path is relative, prepend the current directory
-	[[ "${Path:0:1}" != '/' ]] && Path="$(pwd)${Path:+"/${Path}"}"
+	if [[ "$DoHelp" != 0 ]] || [[ -z "$Path" ]] ; then
+		cat <<-EOH
+		Prints a canonical version of the specified path.
+		
+		Usage: full_path [options] [--] Path
+		
+		Relative paths are turned into absolute.
+		
+		Options:
+		    -f
+		        follow symbolic links; the final path will contain no symbolic link 
+		
+		EOH
+		[[ "$DoHelp" != 0 ]] # sets the return value
+		return 0
+	fi
 	
-	canonical_path "$Path"
+	canonical_path "${PassArguments[@]}" -a -- "$Path"
 	
 } # full_path()
+export -f full_path
 
 
 function datetag() {
@@ -859,4 +935,4 @@ function datetag() {
 	echo "${MAINDATE}${NANOSECONDS:0:${SECONDFRACTION}}"
 
 } # datetag()
-
+export -f datetag

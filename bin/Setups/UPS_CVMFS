@@ -1,8 +1,26 @@
-echo "Accessing CVMFS setup"
-if [[ ! -r "/cvmfs/fermilab.opensciencegrid.org/products/common/etc/setup" ]]; then
-	echo "CVMFS (or its UPS setup for the common repository) is not accessible" >&2
-	return 2
-fi
-echo "Setting UPS (common repository) up from CVMFS"
-source /cvmfs/fermilab.opensciencegrid.org/products/common/etc/setup
+# only use two spurious environment variables here: "DoSetup_UPS_CVMFS" and "DoSetupWrapper_UPS_CVMFS"
+function DoSetup_UPS_CVMFS() {
+	local SetupScript="/cvmfs/fermilab.opensciencegrid.org/products/common/etc/setup"
+	echo "Accessing CVMFS setup"
+	
+	[[ -r "$SetupScript" ]] || Setup CVMFS
+	if [[ ! -r "$SetupScript" ]]; then
+		echo "CVMFS (or its UPS setup for the common repository) is not accessible" >&2
+		return 2
+	fi
+	echo "Setting UPS (common repository) up from CVMFS"
+	source "$SetupScript"
+	unset DoSetup
+} # DoSetup_UPS_CVMFS()
+
+function DoSetupWrapper_UPS_CVMFS() {
+	# wrapper cleaning the environment we use
+	local -i res=0
+	DoSetup_UPS_CVMFS "$@"
+	res=$?
+	unset DoSetup_UPS_CVMFS DoSetupWrapper_UPS_CVMFS
+	return $res	
+} # DoSetupWrapper_UPS_CVMFS()
+
+DoSetupWrapper_UPS_CVMFS
 
