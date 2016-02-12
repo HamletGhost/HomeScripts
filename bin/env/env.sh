@@ -4,10 +4,13 @@
 # no exit statement is used
 #
 
-: ${EnvDir:="${1:-${HOME}/env.d}"}
 
-if [[ -d "$EnvDir" ]]; then
-	for EnvFile in ${EnvDir}/*.sh ; do
+function LoadEnvironment() {
+	local EnvDir="${1:-"${HOME}/env.d"}"
+	
+	[[ -d "$EnvDir" ]] || return 1
+	local EnvFile
+	for EnvFile in "${EnvDir}/"*.sh ; do
 		# skip non-executable and backup files:
 		if [[ ! -x "$EnvFile" ]] || [[ "${EnvFile: -1}" == '~' ]]; then
 		#	echo "'${EnvFile}' skipped"
@@ -16,7 +19,8 @@ if [[ -d "$EnvDir" ]]; then
 	#	echo "Configuration: $(basename "$EnvFile")"
 	        source "$EnvFile"
 	done
-	unset EnvFile
-fi
-unset EnvDir
+} # LoadEnvironment()
+
+LoadEnvironment "$@"
+unset LoadEnvironment
 
