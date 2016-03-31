@@ -1,0 +1,73 @@
+#!/bin/bash
+
+SCRIPTNAME="$(basename "$0")"
+
+function STDERR() { echo "$*" >&2 ; }
+function ERROR() { STDERR "ERROR: $*" ; }
+function FATAL() {
+	local -i Code="$1"
+	shift
+	STDERR "FATAL ERROR (code: ${Code}): $*"
+	exit $Code
+} # FATAL()
+
+
+function help() {
+	cat <<-EOH
+	Prints a timestamp tag.
+	
+	Usage:  ${SCRIPTNAME} [options]
+	
+	By default, a format 'YYYYMMDD' is used.
+	Here, the YYYY is a four digits year, MM a two digits month, DD a two digits
+	day. Additional HHMM means hours and minutes, two digits each, additional SS is
+	two digits seconds and CC is two digits hundreths of second. 
+	
+	
+	Supported options:
+	
+	-c , --cents
+		format: YYYYMMDDHHMMSSCC
+	-s , --seconds
+		format: YYYYMMDDHHMMSS
+	-m , --minutes
+		format: YYYYMMDDHHMM
+	
+	EOH
+} # help()
+
+
+###############################################################################
+# parameters
+
+declare FORMAT=
+declare -i SECONDFRACTION=0
+
+for Param in "$@" ; do
+	[[ -n "$FORMAT" ]] && break
+	case "$Param" in
+		( '-s' | '--seconds' )
+			FORMAT="%Y%m%d%H%M%S"
+			;;
+		( '-m' | '--minutes' )
+			FORMAT="%Y%m%d%H%M"
+			;;
+		( '-c' | '--cents' )
+			FORMAT="%Y%m%d%H%M%S"
+			SECONDFRACTION=2
+			;;
+		( '-h' | '--help' | '-?' )
+			help
+			exit 0
+		( * )
+			FATAL 1 "Format option '${Param}' not supported."
+	esac
+done
+
+[[ -z "$FORMAT" ]] && FORMAT="%Y%m%d"
+
+declare MAINDATE="$(date "+$FORMAT")"
+[[ "$SECONDFRACTION" -gt 0 ]] && NANOSECONDS="$(date '%n')"
+
+echo "${MAINDATE}${NANOSECONDS:0:${SECONDFRACTION}}"
+
