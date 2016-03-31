@@ -123,7 +123,7 @@ function PrintVars() {
 }
 
 function MakeInitRAMFS() {
-	local DestName="$1"
+	local DestPath="$1"
 	local KernelVersion="$2"
 	shift 2
 	
@@ -132,9 +132,20 @@ function MakeInitRAMFS() {
 	[[ -r "$LatestIWLfw" ]] && echo "Including: '${LatestIWLfw}'"
 
 	# create the thing
-	local -a Cmd=( $DRACUT --force --lvmconf --hostonly ${LatestIWLfw:+--install "$LatestIWLfw"} "$INITRAMFSPATH" $UNAMER "$@" )
+	local -a Cmd=( $DRACUT --force --lvmconf --hostonly ${LatestIWLfw:+--install "$LatestIWLfw"} "$DestPath" $UNAMER "$@" )
 	echo "${Cmd[@]}"
-	"${Cmd[@]}" && echo "InitRAMFS image created at '${INITRAMFSPATH}'"
+	local res
+	"${Cmd[@]}"
+	res=$?
+	if [[ $res == 0 ]]; then
+		if [[ -r "$DestPath" ]]; then
+			echo "InitRAMFS image created at '${DestPath}'"
+		else
+			echo "${Cmd[0]} ran successfully, yet there is no '${DestPath}'."
+			return 2
+		fi
+	fi
+	return $res
 } # MakeInitRAMFS
 
 
@@ -147,9 +158,12 @@ function OnlyAction() { isFlagSet "ONLY_${1}" ; }
 
 function DoAction() { isFlagSet "DO_${1}" ; }
 
+function DateTag() { date '+%Y%m%d' ; }
 
 ###############################################################################
 ###  script starts here  ######################################################
+
+DATETAG="$(datetag)"
 
 declare -i iOnly=0
 declare -a DoOnly
@@ -322,7 +336,7 @@ fi
 if DoAction INITRD ; then
 	# ask dracut to create a new initramfs
 	if which "$DRACUT" >& /dev/null ; then
-		INITRAMFSPATH="${BOOTDIR}/initramfs.img"
+		INITRAMFSPATH="${BOOTDIR}/initramfs${SUFFIX}.img"
 		echo "Creating '${INITRAMFSPATH}' for linux ${UNAMER}"
 		MakeInitRAMFS "$INITRAMFSPATH" "$UNAMER"
 	else
@@ -342,12 +356,21 @@ if DoAction BOOTLOADER ; then
 		echo "$GRUBMENU seems to already have this kernel in."
 	else
 		echo "Running automatic GRUB configuration update..."
-		if [[ -r "$GRUBMENU" ]]; then
-			mv "$GRUBMENU" "${GRUBMENU}-prev"
+		NewGrubMenu="${GRUBMENU}-${UNAMER}-${DATETAG}"
+		grub2-mkconfig -o "$NewGrubMenu"
+		res=$?
+		if [[ $res == 0 ]]; then
+			if [[ -r "$GRUBMENU" ]]; then
+				OldGrubMenu="${GRUBMENU}-prev"
+				echo "Previous grub menu saved as: '${OldGrubMenu}'"
+				mv "$GRUBMENU" "$OldGrubMenu"
+			else
+				mkdir -p "$(dirname "$GRUBMENU")"
+			fi
+			mv "$NewGrubMenu" "$GRUBMENU"
 		else
-			mkdir -p "$(dirname "$GRUBMENU")"
+			FAIL $res "Creation of grub menu failed with exit code ${res}. Partial new menu saved as '${NewGrubMenu}'"
 		fi
-		grub2-mkconfig -o "$GRUBMENU"
 	fi
 else
 	echo "Skipping update of boot loader..."
