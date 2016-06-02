@@ -12,6 +12,8 @@ alias du2="du -x -d2"
 if isBSD ; then
   alias ls="ls -G"
   alias v="ls -al"
+  function tailf() { tail -f "$@" ; }
+  export -f tailf
 else
   alias ls="ls --color=auto"
   alias v="ls --color=auto -alv"
