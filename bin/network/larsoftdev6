@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 
 GetTicket.sh
-fnal --noticket --user=larsoft --host=larsoftdev6
+fnal --noticket --user=larsoft --host=larsoftdev6 "$@"
 
