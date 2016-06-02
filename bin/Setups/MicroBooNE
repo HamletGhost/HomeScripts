@@ -1,0 +1,9 @@
+
+
+function uboone_grid_proxy() {
+	kx509 \
+	  && voms-proxy-init -noregen -rfc -voms fermilab:/fermilab/uboone/Role=Analysis
+}
+
+[[ "${VERBOSITY_LEVEL_SETUP:-1}" -ge 0 ]] && echo "MicroBooNE proxy function: uboone_grid_proxy"
+

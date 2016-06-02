@@ -25,13 +25,13 @@ function Setup() {
 	local Option
 	local Indent=''
 	local Mode=''
-	local -i QuietLevel=1
-	while getopts 'i:nq:Qh?i-' Option ; do
+	local -i QuietLevel="${VERBOSITY_LEVEL_SETUP:-0}"
+	while getopts 'i:nq:v:Qh?i-' Option ; do
 		case "$Option" in
 			( 'i' ) Indent="$OPTARG" ;;
 			( 'n' ) Mode='query' ;;
-			( 'q' ) QuietLevel="$OPTARG" ;;
-			( 'Q' ) QuietLevel=0 ;;
+			( 'q' | 'v' ) QuietLevel="$OPTARG" ;;
+			( 'Q' ) QuietLevel=-1 ;;
 			( '-' ) let ++OPTIND ; break ;;
 			( 'h' | '?' ) Mode='help' ;;
 		esac
@@ -56,11 +56,15 @@ function Setup() {
 		Options:
 		    -n
 		        query mode: returns a non-zero exit code if setup file was not found
-		    -q LEVELS
-		        a quietness level passed to the setup scripts; if LEVELS is non-positive,
-		        the Setup output is also affected
+		    -v LEVELS (also -q, deprecated)
+		        a quietness level passed to the setup scripts; if LEVELS is
+		          < 0 (negative) : no standard output is printed at all
+			  0   Setup is completely quiet but the setup scripts can output
+		          1   Setup will write the script being executed
+		        In all cases, the level is stored in VERBOSITY_LEVEL_SETUP environment
+		        variable, available to setup scripts
 		    -Q
-		        quiet mode: output on screen reduced (equivalent to "-q 0")
+		        quiet mode: output on screen reduced (equivalent to "-v -1")
 		    -i INDENT
 		        use INDENT as string for output indentation
 		    -h , -?
@@ -92,7 +96,7 @@ function Setup() {
 		local SetupDir="$(dirname "$TargetSetupScript")"
 		local SetupScriptName="$(basename "$TargetSetupScript")"
 	fi
-	if [[ $Quiet -gt 0 ]]; then
+	if [[ $QuietLevel -ge 1 ]]; then
 		if [[ -n "$SetupScript" ]]; then
 			echo "${Indent}Setup (${SetupScriptName}) from '${SetupDir}'"
 		else
@@ -110,7 +114,9 @@ function Setup() {
 		cd "$SetupDir"
 		shift
 		local ReturnCode
-		if [[ $Quiet -gt 0 ]]; then
+		local VERBOSITY_LEVEL_SETUP="$QuietLevel"
+		export VERBOSITY_LEVEL_SETUP
+		if [[ $QuietLevel -ge 0 ]]; then
 			source "./${SetupScriptName}" "$@"
 		else
 			source "./${SetupScriptName}" "$@" > /dev/null
@@ -120,8 +126,8 @@ function Setup() {
 		return $ReturnCode
 	else
 		# fallback on an existing setup (e.g. UPS)
-		[[ $Quiet -gt 0 ]] && echo "${Indent}setup $@"
-		if [[ $Quiet -gt 0 ]]; then
+		[[ $QuietLevel -ge 1 ]] && echo "${Indent}setup $@"
+		if [[ $QuietLevel -ge 0 ]]; then
 			setup "$Package" "$@"
 		else
 			setup "$Package" "$@" > /dev/null

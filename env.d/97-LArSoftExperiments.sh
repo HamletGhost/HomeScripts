@@ -1,4 +1,4 @@
-Setup LArSoft
+Setup -Q LArSoft
 
 function isExperiment() {
 	if [[ -d '/uboone' ]]; then
