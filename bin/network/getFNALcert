@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Reads a p12 certificate from Fermilab
 #
@@ -30,10 +30,18 @@ function LASTFATAL() {
 	[[ "$Code" == 0 ]] || FATAL "$Code" "$@"
 } # LASTFATAL()
 
+function hasGetCert() {
+	type -t getcert >& /dev/null
+} # hasGetCert()
+
 function atFNAL() {
 	local HostName="$(hostname)"
 	[[ "$HostName" =~ \.fnal\.gov$ ]]
 } # atFNAL()
+
+function canGetCert() {
+	atFNAL && hasGetCert
+} # canGetCert()
 
 function GetTicket() {
 	local -r GetTicketScriptName='GetTicket.sh'
@@ -70,7 +78,7 @@ function ExpandPath() {
 
 
 ###############################################################################
-if atFNAL ; then
+if canGetCert ; then
 	
 	#
 	# if we are on site, we can directly create the certificate
@@ -117,7 +125,10 @@ if atFNAL ; then
 	
 	CreateCertificate "$CertLocalPath"
 
-else # not at FNAL
+else # can't get certificate from here
+	
+	HostName="$(hostname)"
+	[[ "${HostName%%.*}" != "${BRIDGEHOST%%.*}" ]] || FATAL 1 "The bridge host (${HostName}) seems unable to get certificates!"
 	
 	function ConnectFNAL() { fnal --host="$BRIDGEHOST" "$@" ; }
 
