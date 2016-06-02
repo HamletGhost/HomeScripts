@@ -39,7 +39,7 @@ esac
 
 # this very script should be in the repository:
 # use it to find where that is
-ScriptRealDir="$(readlink -f "$SCRIPTDIR")"
+ScriptRealDir="$(greadlink "$SCRIPTDIR")"
 AGitPackage="${ScriptRealDir}"
 while [[ "$AGitPackage" != '/' ]] && [[ "$AGitPackage" != '.' ]] ; do
 	[[ -d "${AGitPackage}/.git" ]] && break
