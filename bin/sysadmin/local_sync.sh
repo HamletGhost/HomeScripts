@@ -10,7 +10,7 @@ REMOTESETUPSCRIPT="bin/PortageFTPserver.sh"
 : ${TARGET:="world"}
 : ${DEFAULTSERVER:="glamis.thebard.net"}
 
-declare -a Servers=( "glamis.thebard.net" "malvolio.thebard.net" )
+declare -a Servers=( "glamis.thebard.net" "macosx.thebard.net" "malvolio.thebard.net" )
 
 MakeConf="/etc/portage/make.conf"
 
