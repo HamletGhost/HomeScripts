@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 Setup -Q LArSoft
 
 function isExperiment() {
@@ -23,19 +25,39 @@ function isExperiment() {
 } # isExperiment()
 
 
-case "$(isExperiment)" in
-	( 'DUNE' )
-		###
-		### DUNE setup
-		###
-		alias grid_proxy='echo No proxy available for LBNE...'
-		break
-	( 'MicroBooNE' )
-		###
-		### MicroBooNE setup
-		###
-		alias grid_proxy='kx509;voms-proxy-init -noregen -rfc -voms fermilab:/fermilab/uboone/Role=Analysis'
-		;;
-	( * )
-esac
+function grid_proxy() {
+	local Experiment="${1:-$(isExperiment)}"
+	local Server
+	local Command
+	case "$Experiment" in
+		( 'DUNE' )
+			###
+			### DUNE setup
+			###
+			Server="dune"
+			Command="/dune/Role=Analysis"
+			;;
+		( 'MicroBooNE' | 'uBooNE' )
+			###
+			### MicroBooNE setup
+			###
+			Server="fermilab"
+			Command="/fermilab/uboone/Role=Analysis"
+			;;
+		( 'SBND' )
+			###
+			### MicroBooNE setup
+			###
+			Server="fermilab"
+			Command="/fermilab/sbnd/Role=Analysis"
+			;;
+		( * )
+			echo "No grid certificate settings for experiment '${Experiment}'" >&2
+			return 1
+	esac
+	kx509
+	voms-proxy-init -noregen -rfc -voms "${Server}${Command:+":${Command}"}"
+} # grid_proxy()
 
+unalias grid_proxy >& /dev/null
+export -f grid_proxy
