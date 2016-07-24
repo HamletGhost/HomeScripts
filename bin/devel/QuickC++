@@ -10,7 +10,7 @@
 # - LIB (expected "-Llibdir -llibrary ...")
 #
 
-DEFAULT_CPPFLAGS="-Wall -pedantic --std=c++11"
+DEFAULT_CPPFLAGS="-Wall -pedantic --std=c++14"
 : ${CXX:='g++'}
 
 function RemoveSourceSuffix {
