@@ -5,13 +5,21 @@
 declare -F isBSD > /dev/null || function isBSD() { [[ "$(uname)" != "Linux" ]]; }
 
 # common aliases
-alias du0="du -x -d0"
-alias du1="du -x -d1"
-alias du2="du -x -d2"
+if isBSD ; then
+  alias du0="du -x -d0"
+  alias du1="du -x -d1"
+  alias du2="du -x -d2"
+else
+  alias du0="du -x --max-depth=0"
+  alias du1="du -x --max-depth=1"
+  alias du2="du -x --max-depth=2"
+fi
 
 if isBSD ; then
   alias ls="ls -G"
   alias v="ls -al"
+  function tailf() { tail -f "$@" ; }
+  export -f tailf
 else
   alias ls="ls --color=auto"
   alias v="ls --color=auto -alv"
