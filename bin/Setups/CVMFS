@@ -1,7 +1,7 @@
 # only use two spurious environment variables here: "DoSetup_CVMFS" and "DoSetupWrapper_CVMFS"
 function DoSetup_CVMFS() {
 	local -a Mounts
-	Mounts=( fermilab.opensciencegrid.org )
+	Mounts=( {fermilab,oasis,uboone,dune}.opensciencegrid.org )
 	local Mount
 	local -i nErrors=0
 	for Mount in "${Mounts[@]}" ; do
