@@ -10,7 +10,7 @@ REMOTESETUPSCRIPT="bin/PortageFTPserver.sh"
 : ${TARGET:="world"}
 : ${DEFAULTSERVER:="glamis.thebard.net"}
 
-declare -ar Servers=( "glamis.thebard.net" "malvolio.thebard.net" )
+declare -a Servers=( "glamis.thebard.net" "macosx.thebard.net" "malvolio.thebard.net" )
 
 MakeConf="/etc/portage/make.conf"
 
@@ -26,6 +26,11 @@ function FATAL() {
 	STDERR "FATAL (${Code}): $*"
 	exit $Code
 } # FATAL()
+
+function LASTFATAL() {
+	local Code="$?"
+	[[ "$Code" == 0 ]] || FATAL "$Code" "$@"
+} # LASTFATAL()
 
 function isFlagSet() {
 	local VarName="$1"
@@ -93,6 +98,33 @@ function MountRemoteDirs() {
 		MountRemoteDir "$Dir" >& /dev/null
 	done
 }
+
+function areSameServer() {
+	local Alias="$1"
+	local ServerName="$2"
+	[[ "$ServerName" == "$Alias" ]] || [[ "$ServerName" =~ ^${Alias}. ]]
+} # areSameServer()
+
+function ServerExists() {
+	local Server="$1"
+	ping -c 1 -w 2 -q "$Server" >& /dev/null
+} # ServerExists()
+
+function DiscoverServer() {
+	local -ar Servers=( "$@" )
+	local Server
+	for Server in "${Servers[@]}" ; do
+		[[ -n "$Server" ]] || continue
+		# this server?
+		areSameServer "$HOSTNAME" "$Server" && continue
+		# does the server exist?
+		ServerExists "$Server" || continue
+		# good enough
+		echo "$Server"
+		return 0
+	done
+	return 1
+} # DiscoverServer()
 
 
 function help()	{
@@ -179,17 +211,11 @@ fi
 if [[ -z "$SERVER" ]]; then
 	if [[ "$NParams" -ge 1 ]]; then
 		SERVER="${Params[0]}"
-		ping -c 1 -w 2 -q "$SERVER" >& /dev/null || FATAL 1 "Can't contact server '${SERVER}'"
+		ServerExists "$SERVER"
+		LASTFATAL "Can't contact server '${SERVER}'"
 	else
-		for SERVER in "${Servers[@]}" "" ; do
-			[[ -n "$SERVER" ]] || continue
-			# this server?
-			[[ "$HOSTNAME" == "$SERVER" ]] && continue
-			[[ "${SERVER#${HOSTNAME}.}" != "$SERVER" ]] && continue
-			# does the server exist?
-			ping -c 1 -w 2 -q "$SERVER" >& /dev/null || continue
-		done
-		[[ -z "$SERVER" ]] && FATAL 1 "No server available (tried: ${Servers[@]})"
+		SERVER="$(DiscoverServer "${Servers[@]}")"
+		LASTFATAL "No server available (tried: ${Servers[@]})"
 	fi
 fi
 
