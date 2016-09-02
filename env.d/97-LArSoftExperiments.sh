@@ -55,7 +55,9 @@ function grid_proxy() {
 			echo "No grid certificate settings for experiment '${Experiment}'" >&2
 			return 1
 	esac
+	GetTicket.sh
 	kx509
+	echo "Requesting ${Experiment} certificate: ${Server}${Command:+":${Command}"}"
 	voms-proxy-init -noregen -rfc -voms "${Server}${Command:+":${Command}"}"
 } # grid_proxy()
 
