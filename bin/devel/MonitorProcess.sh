@@ -15,13 +15,24 @@
 #     added resident memory peak detection too
 # 1.4 (petrillo@fnal.gov) 20140814
 #     added output to files
+# 1.5 (petrillo@fnal.gov) 20161010
+#     updated for OSX
 #
 
 SCRIPTNAME="$(basename "$0")"
-SCRIPTVERSION="1.4"
+SCRIPTVERSION="1.5"
+
+function isOSX() {
+	[[ ! -d '/proc' ]] # this is not correct, but it's a shortcut
+} # isOSX()
+
 
 : ${POLLDELAY:="60"}
-: ${PSOPTS:="-o user,pid,ppid,stat,psr,pcpu,pmem,sz,rss,vsz,stime,etime,cputime,tt"}
+if isOSX ; then
+	: ${PSOPTS:="-o user,pid,ppid,stat,pcpu,pmem,rss,vsz,stime,etime,cputime,tt"}
+else
+	: ${PSOPTS:="-o user,pid,ppid,stat,psr,pcpu,pmem,sz,rss,vsz,stime,etime,cputime,tt"}
+fi
 : ${DEFAULTMAPNAME:="memmap-%TIME%.txt"}
 
 : ${Width="$COLUMNS"}
@@ -86,7 +97,6 @@ function LASTFATAL() {
 } # LASTFATAL()
 
 
-
 function PrintProcess() {
 	local PID
 	local res=1
@@ -98,7 +108,7 @@ function PrintProcess() {
 		[[ -z "$PID" ]] && break
 		[[ -n "${PID//[0-9]}" ]] && break
 		[[ -n "$Line" ]] && echo "$Line"
-		Line="$(ps --no-header $PSOPTS "$PID")"
+		Line="$(ps $PSOPTS "$PID" | tail -n +2)"
 		[[ $? == 0 ]] && res=0
 	done
 	if [[ $iParam -le $# ]]; then
@@ -144,6 +154,13 @@ function ReportProcess() {
 function GetDateTag() {
 	printf "%-30s" "$(date)"
 }
+
+function isProcessRunning() {
+	local PID="$1"
+	[[ -z "$PID" ]] && return 1
+	[[ -d "/proc/${PID}" ]] && return 0 # Linux
+	ps "$PID" >& /dev/null
+} # isProcessRunning()
 
 function GetPID() {
 	local ProgName="$1"
@@ -201,16 +218,11 @@ function SaveMemMaps() {
 	"$CopyMapProc" "/proc/${PID}/maps" > "$MapFile"
 } # SaveMemMaps()
 
-function isRunning() {
-	local PID="$1"
-	[[ -d "/proc/${PID}" ]]
-} # isRunning()
-
 
 function OnExit() {
 	[[ -z "$PID" ]] && return
 	local ClosingRemark
-	if isRunning "$PID" ; then
+	if isProcessRunning "$PID" ; then
 		ClosingRemark+="$(GetDateTag) | Process $PID still running"
 	else
 		ClosingRemark+="$(GetDateTag) | Process $PID has ended"
@@ -290,13 +302,18 @@ if [[ -z "$1" ]] || [[ "$1" == "-h" ]] || [[ "$1" == "-?" ]] || [[ "$1" == "--he
 	exit
 fi
 
+if isOSX ; then
+	isFlagSet FindPeak && FATAL 1 "Memory peak finding not supported in OSX."
+	[[ -n "$MEMMAP" ]] && FATAL 1 "Memory map tracking not supported in OSX."
+fi
+
 [[ "${#OutputFiles[*]}" == 0 ]] && OutputFiles=( '' )
 
 ProcessSpec="${Processes[0]}"
 PID="$(GetPID "${Processes[0]}")"
 
-if [[ -z "$PID" ]] || [[ ! -d "/proc/${PID}" ]]; then
-	echo "$(GetDateTag) - no process ${ProcessSpec} is currently running."
+if ! isProcessRunning "$PID" ; then
+	echo "$(GetDateTag) - no process ${ProcessSpec} (PID=${PID}) is currently running."
 	exit 1
 fi
 
@@ -341,7 +358,7 @@ for (( iPolls = 1 ;; ++iPolls )); do
 		fi
 	fi
 	sleep $POLLDELAY
-	[[ -d "/proc/${PID}" ]] || break
+	isProcessRunning "$PID" || break
 	if [[ $HeaderEvery -gt 0 ]] && [[ $((iPolls % $HeaderEvery)) == 0 ]]; then
 		echo "$HeaderLine" | cut -c 1-${Width}
 	fi
