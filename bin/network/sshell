@@ -14,13 +14,15 @@
 #   added exec option
 # 1.3 (20150830, petrillo@fnal.gov)
 #   added "ping" mode
+# 1.4 (20161227, petrillo@fnal.gov)
+#   added "mount" mode
 #
 
 SCRIPTNAME="$(basename "$0")"
 SCRIPTDIR="$(dirname "$0")"
 CWD="$(pwd)"
 
-SCRIPTVERSION="1.3"
+SCRIPTVERSION="1.4"
 
 # program paths
 : ${kinit:="kinit"}
@@ -28,9 +30,12 @@ SCRIPTVERSION="1.3"
 : ${scp:="scp"}
 : ${mkdir:="mkdir"}
 : ${ping:="ping"}
+: ${sshfs:="sshfs"}
 
 ssh_default_options=( '-X' )
 # ssh_default_options=( '-X' '-Y' )
+
+DefaultBaseMountPoint="${HOME}/Volumes"
 
 
 function help() {
@@ -52,6 +57,8 @@ function help() {
 	    executes a command on the remote host
 	--ping , -p , ping , p
 	    executes ping with the specified parameters
+	--mount , -m , mount , m
+	    mounts the remote directory into the specified one
 	--version , -V
 	    just prints the version numbre and exits
 	--help , -h , -?
@@ -63,6 +70,7 @@ function help() {
 	EOH
 	help_common
 } # help()
+
 
 function help_common() {
 	cat <<-EOH
@@ -260,6 +268,30 @@ function help_ping() {
 } # help_ping()
 
 
+function help_mount() {
+	cat <<-EOH
+	Mode: mount
+	  ${SCRIPTNAME}  <--mount|mount> [options] [MountPoint] [--] [SSHFS options]
+	
+	Mounts a remote directory into the specified one. The additional optiosn are
+	passed to SSHFS.
+	If no mount point is specified, <BaseMountPoint>/<ServerName> is used
+	(<BaseMountPoint> can be specified as an option).
+	
+	SSHFS is required.
+	
+	Mount mode options:
+	--remotedir=REMOTEDIR [default: the remote home directory]
+	    mounts the specified remote directory
+	--basedir=BASEMOUNTPOINT ['${DefaultBaseMountPoint}']
+	    if mount directory is not specified, it's created under this directory
+	
+	The common options are accepted:
+	
+	EOH
+} # help_mount()
+
+
 function isFlagSet() {
 	local VARNAME="$1"
 	[[ -n "${!VARNAME//0}" ]]
@@ -313,7 +345,15 @@ function CMDDBG() {
 
 function DUMPVAR() {
 	local VarName="$1"
-	DBG "${VarName}='${!VarName}'"
+#	DBG "${VarName}='${!VarName}'"
+  local Value
+  Value="$(declare -p "$VarName" 2> /dev/null)"
+  local -i Code=$?
+  if [[ "$Code" == 0 ]]; then
+    DBG "${Value}"
+  else
+    DBG "'${VarName}' not defined!"
+  fi
 } # DUMPVAR()
 
 function DUMPVARS() {
@@ -490,6 +530,14 @@ function TransferData() {
 	local -a Sources=( "$@" )
 	Execute rsync -av -e ssh "${Sources[@]}" "$Destination"
 } # TransferData()
+
+
+function CheckExecutable() {
+  local ExecPath="$1"
+  
+  which "$ExecPath" || FATAL 2 "Can't find the required executable '${ExecPath}'."
+  
+} # CheckExecutable()
 
 
 ################################################################################
@@ -703,6 +751,44 @@ function parse_options_ping() {
 } # parse_options_ping()
 
 
+function parse_options_mount() {
+
+	local -i iParam=$(( $1 - 1 ))
+	shift
+	local -i NDigested=0
+	
+	while [[ $iParam -lt $# ]]; do
+		let ++iParam
+		local Param="${!iParam}"
+
+		DBGN 3 "  is '${Param}' a ${MODE} option?"
+
+		# by default, assume we swallow one parameter only
+		let ++NDigested
+
+		if [[ "${Param:0:1}" == '-' ]] && isFlagUnset NoMoreOptions ; then
+			case "$Param" in
+				( "--remotedir="* )
+					Sources=( "${Param#--*=}" )
+					;;
+				( "--basedir="* )
+					BaseMountPoint="${Param#--*=}"
+					;;
+				( * )
+					FATAL 1 "Invalid ${MODE} option '${Param}'."
+			esac
+		else
+			[[ "${#Destinations[@]}" == 0 ]] || FATAL 1 "Too many mount points specified ('${Param}')."
+			
+			Destinations=( "$Param" )
+		fi
+
+		break
+	done
+	return $NDigested
+} # parse_options_mount()
+
+
 function set_environment() {
 	# Sets the environment for the specified mode
 	local Mode="$1"
@@ -785,6 +871,7 @@ while [[ $iParam -lt $nParams ]]; do
 				( '--read' | '-r' | 'read' | 'r' )   SetOperationMode 'read' ;;
 				( '--exec' | '-x' | 'exec' | 'x' )   SetOperationMode 'exec' ;;
 				( '--ping' | '-p' | 'ping' | 'p' )   SetOperationMode 'ping' ;;
+				( '--mount' | '-m' | 'mount' | 'm' ) SetOperationMode 'mount' ;;
 			esac
 			[[ -n "$MODE" ]] && continue
 		fi
@@ -1044,6 +1131,22 @@ case "$MODE" in
 	( 'ping' )
 		Execute $ping "${Options[@]}" -- "$RemotePath"
 		ExitCode=$?
+		;;
+
+	#############################################################################
+	( 'mount' )
+		MountPoint="${Destinations[0]}"
+		: ${BaseMountPoint:="$DefaultBaseMountPoint"}
+		: ${MountPoint:="${BaseMountPoint:+${BaseMountPoint%/}/}${RemotePath}"}
+		
+		Execute $mkdir -p "$MountPoint"
+		LASTFATAL 1 "Can't write the mount point '${MountPoint}'"
+		
+		RemoteDir="${RemotePath}:${Sources[0]}"
+		
+		Execute $sshfs "$RemoteDir" "$MountPoint" "${Options[@]}"
+		ExitCode=$?
+		[[ $ExitCode == 0 ]] && MSG "'${RemoteDir}' mounted at '${MountPoint}'. Unmount with \`umount '${MountPoint}'\`."
 		;;
 
 	#############################################################################
