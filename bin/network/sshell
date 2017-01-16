@@ -29,13 +29,13 @@ SCRIPTVERSION="1.5"
 # program paths
 : ${kinit:="kinit"}
 : ${ssh:="ssh"}
-: ${scp:="scp"}
 : ${mkdir:="mkdir"}
 : ${ping:="ping"}
 : ${sshfs:="sshfs"}
 
 ssh_default_options=( '-X' )
 # ssh_default_options=( '-X' '-Y' )
+transfer_default_options=( '--verbose' '--archive' )
 
 DefaultBaseMountPoint="${HOME}/Volumes"
 
@@ -550,7 +550,9 @@ function TransferData() {
 	local Destination="$1"
 	shift
 	local -a Sources=( "$@" )
-	Execute rsync -av -e ssh "${Sources[@]}" "$Destination"
+	local -a Options=( "${TransferOptions[@]}" )
+	[[ "${#Options[@]}" == 0 ]] && Options=( "${transfer_default_options[@]}" )
+	Execute rsync "${Options[@]}" -e ssh "${Sources[@]}" "$Destination"
 } # TransferData()
 
 
@@ -696,6 +698,10 @@ function parse_options_write() {
 				( "--src="* )
 					Destinations=( "${Destinations[@]}" "$CurrentDestination" )
 					Sources=( "${Sources[@]}" "${Param#--*=}" )
+					;;
+				( "--opt="* )
+               DBG "Adding option: ${Param#--*=}"
+					TransferOptions=( "${TransferOptions[@]}" "${Param#--*=}" )
 					;;
 				( * )
 					FATAL 1 "Invalid ${MODE} option '${Param}'."
