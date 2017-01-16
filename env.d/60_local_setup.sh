@@ -52,7 +52,7 @@ function ConfigureProgramDirs() {
 	
 	local Dir
 	local -i nErrors=0
-	for Dir in "$@"* ; do
+	for Dir in "$@" ; do
 		if [[ ! -d "$Dir" ]]; then
 			ERROR "${FUNCNAME}: '${Dir}' is not a directory!"
 			let ++nErrors
