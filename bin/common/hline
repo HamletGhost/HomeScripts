@@ -3,9 +3,8 @@
 # Writes a message highlighted in a full line
 #
 
-: ${ATOM:=" - *"}
-: ${LATOM:="$ATOM"}
-: ${RATOM:="$ATOM"}
+: ${LATOM:=" - *"}
+: ${RATOM:="* - "}
 : ${LENGTH:=${COLUMNS:-80}}
 
 HighlightCode="\e[0;31m" # dark red
@@ -35,14 +34,20 @@ if [[ $LeftAtomLength == $RightAtomLength ]]; then
 else
 	declare -i LeftFrame=$((Frame / 2))
 	declare -i RightFrame=$((Frame - LeftFrame))
-
+	
 	declare -i NLeftAtoms=$((LeftFrame / $LeftAtomLength))
 	declare -i NRightAtoms=$((RightFrame / $RightAtomLength))
 fi
 
+NamePadding=$(($Frame - ($NLeftAtoms * $LeftAtomLength + $NRightAtoms * $RightAtomLength) ))
+LeftNamePadding=$(( $NamePadding / 2 ))
+RightNamePadding=$(( $NamePadding - $LeftNamePadding ))
+
 echo -ne "$HighlightCode"
-for (( i = 0; i < $NLeftAtoms ; ++i )); do echo -n "$ATOM" ; done
+for (( i = 0; i < $NLeftAtoms ; ++i )); do echo -n "$LATOM" ; done
+printf "%*s" "$LeftNamePadding" ""
 [[ -n "$Message" ]] && echo -en "${TitleHighlightCode} ${Message} ${HighlightCode}"
-for (( i = 0; i < $NRightAtoms ; ++i )); do echo -n "$ATOM" ; done
+printf "%*s" "$RightNamePadding" ""
+for (( i = 0; i < $NRightAtoms ; ++i )); do echo -n "$RATOM" ; done
 echo -e "$ResetCode"
 
