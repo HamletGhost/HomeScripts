@@ -18,7 +18,7 @@ if [[ -z "$FUNCTIONS_SH_LOADED" ]]; then
 	export ANSIWHITE="\e[1;37m"
 	
 	
-	export FUNCTIONS_SH_LOADED=1
+	export FUNCTIONS_SH_LOADED="${BASH_SOURCE[0]}"
 	
 fi # if functions were not loaded
 
@@ -649,6 +649,30 @@ function isPositiveInteger() {
 	local Number="$1"
 	isNonNegativeInteger "$Number" && [[ "$Number" -gt 0 ]]
 } # isPositiveInteger()
+
+###############################################################################
+### Meta: function managing
+###
+
+function ReloadFunctions() {
+	
+	local FunctionPath="${1:-"$FUNCTIONS_SH_LOADED"}"
+	if [[ ! -r "$FunctionPath" ]]; then
+		 CRITICAL 1 "Functions script is not at '${FunctionPath}' any more!!"
+		 return $?
+	fi
+	
+	INFO "Reloading functions from '${FunctionPath}'"
+	unset FUNCTIONS_SH_LOADED
+	source "$FunctionPath"
+	local res=$?
+	if [[ $res != 0 ]]; then
+		CRITICAL $res "Failed resourcing functions from '${FunctionPath}'!"
+		return $?
+	fi
+	
+} # ReloadFunctions()
+
 
 ###############################################################################
 ### alias-like functions
