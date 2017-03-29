@@ -55,7 +55,9 @@ function grid_proxy() {
 			echo "No grid certificate settings for experiment '${Experiment}'" >&2
 			return 1
 	esac
-	kx509
+	which cigetcert >& /dev/null || setup cigetcert
+	cigetcert -s 'fifebatch.fnal.gov' || return $?
+	# kx509
 	voms-proxy-init -noregen -rfc -voms "${Server}${Command:+":${Command}"}"
 } # grid_proxy()
 
