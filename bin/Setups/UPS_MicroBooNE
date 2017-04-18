@@ -1,0 +1,5 @@
+Setup UPS_LArSoft || return
+
+echo "Setting UPS (MicroBooNE repository) up from CVMFS"
+source '/cvmfs/uboone.opensciencegrid.org/products/setup'
+
