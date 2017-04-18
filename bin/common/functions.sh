@@ -40,11 +40,23 @@ function ERROR() {
 	STDERR "${ErrorColor}Error: $*${ResetColor}"
 } # ERROR()
 
-function FATAL() {
+function CRITICAL() {
+	# A version of FATAL for functions expected to be called from command line.
+	# It only prints an error message. FATAL-like usage is envisioned as:
+	#     
+	#     CRITICAL 2 "File not found!"
+	#     return $?
+	#     
+	# 
 	local Code="$1"
 	shift
 	STDERR "${FatalColor}Fatal error (${Code}): $*${ResetColor}"
-	exit $Code
+	return $Code
+} # CRITICAL()
+
+function FATAL() {
+	CRITICAL "$@"
+	exit $?
 } # FATAL()
 
 function LASTFATAL() {
@@ -141,27 +153,38 @@ function RemoveSlash() {
 	fi
 } # RemoveSlash()
 
+function IsAbsolutePath() {
+  # Returns whether the specified path looks like an absolute path.
+  local Path="$1"
+  [[ "${Path:0:1}" == '/' ]]
+} # IsAbsolutePath()
+
+function MakeAbsolutePath() {
+  # Prints an absolute path version of the specified path, using current
+  # directory to complete relative paths.
+  # It does not support protocol names.
+  local Path="$1"
+  
+  if IsAbsolutePath "$Path" ; then
+    echo "$Path"
+    return 0
+  fi
+  
+  local Cwd="$(pwd)"
+  [[ "$Path" == '.' ]] && Path=''
+  echo "${Cwd}${Path:+"/${Path#./}"}"
+  
+} # MakeAbsolutePath()
+
 
 function InsertPath() {
 	#
-	# InsertPath [options] VarName Path [Path ...]
+	# See "DoHelp" section in the code for usage directions.
 	#
-	# Insert paths to a list of paths separated by a separator in VarName.
-	# The resulting list is printed out.
-	#
-	# Options:
-	# -s SEP     specify the separation string (default: ':')
-	# -1 (number!) don't allow for duplicate items (existing and added)
-	# -m         allow for duplicate items (default)
-	# -a         append (default)
-	# -p         prepend
-	# -e         add only if existing
-	# -d         add only if existing directory
-	#
-	local Option Separator=':' Prepend=0 AllowDuplicates=1 Move=0
+	local Option Separator=':' Prepend=0 AllowDuplicates=1 Move=0 DoHelp=0
 	local -a Checks
 	OPTIND=1
-	while getopts "ed1Dmaps:-" Option ; do
+	while getopts "ed1Dmaps:h-" Option ; do
 		case "$Option" in
 			( 'e' | 'd' ) Checks=( "${Checks[@]}" "-${Option}" ) ;;
 			( '1' ) AllowDuplicates=0 ;;
@@ -170,6 +193,7 @@ function InsertPath() {
 			( 'a' ) Prepend=0 ;;
 			( 'p' ) Prepend=1 ;;
 			( 's' ) Separator="$OPTARG" ;;
+			( 'h' ) DoHelp=1 ;;
 			( '-' ) break ;;
 		esac
 	done
@@ -177,6 +201,41 @@ function InsertPath() {
 	
 	local VarName="$1"
 	shift
+	
+	if isFlagSet DoHelp ; then
+		cat <<-EOH
+			
+			${FUNCNAME}  [options] VarName Path [Path ...]
+			
+			Insert paths to a list of paths separated by a separator in VarName.
+			The resulting list is printed out.
+			
+			Options:
+			-s SEP [':']
+		      specify the separation string (default: ':')
+			-D
+			    allow for duplicate items (default)
+			-1 (number!)
+			    don't allow for duplicate items (existing and added): if an element
+			    is already present, it is not added again
+			-m
+			    don't allow for duplicate items (existing and added): if the Path is
+			    already present, it is moved to the beginning (prepend mode) or end
+			    (append mode)
+			-a
+			    append (default)
+			-p
+			    prepend
+			-e
+			    add a Path only if it exists
+			-d
+			    add a Path only if it is an existing directory
+			-h
+			    print this help
+			
+		EOH
+		return 0
+	fi
 	
 	local -a KnownItems WrittenItems
 	local OldIFS="$IFS"
@@ -620,6 +679,23 @@ function Uncompress() {
 		$UncompressCmd
 	fi
 } # Uncompress()
+
+
+function DetectNCPUs() {
+  #
+  # Usage:  DetectNCPUs
+  #
+  # Prints on screen the maximum number of hardware threads available.
+  #
+  if [[ -r '/proc/cpuinfo' ]]; then
+    grep -c 'processor' '/proc/cpuinfo'
+    return 0
+  else
+    sysctl -n 'hw.ncpu' 2> /dev/null
+    return
+  fi
+  return 1
+} # DetectNCPUs()
 
 
 function isNonNegativeInteger() {
