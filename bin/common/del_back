@@ -8,4 +8,4 @@ if [ "$1" == "now" ]; then
 fi
 
 
-find $* -name '*~' ${OPTIONS} -ls ${COMMAND}
+find "${@:-.}" -name '*~' ${OPTIONS} -ls ${COMMAND}

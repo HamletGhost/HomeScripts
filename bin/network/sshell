@@ -14,23 +14,32 @@
 #   added exec option
 # 1.3 (20150830, petrillo@fnal.gov)
 #   added "ping" mode
+# 1.4 (20161227, petrillo@fnal.gov)
+#   added "mount" mode
+# 1.5 (20161228, petrillo@fnal.gov)
+#   added "umount" mode
+# 1.6 (20170303, petrillo@fnal.gov)
+#   added forced unmount option
 #
 
 SCRIPTNAME="$(basename "$0")"
 SCRIPTDIR="$(dirname "$0")"
 CWD="$(pwd)"
 
-SCRIPTVERSION="1.3"
+SCRIPTVERSION="1.6"
 
 # program paths
 : ${kinit:="kinit"}
 : ${ssh:="ssh"}
-: ${scp:="scp"}
 : ${mkdir:="mkdir"}
 : ${ping:="ping"}
+: ${sshfs:="sshfs"}
 
 ssh_default_options=( '-X' )
 # ssh_default_options=( '-X' '-Y' )
+transfer_default_options=( '--verbose' '--archive' )
+
+DefaultBaseMountPoint="${HOME}/Volumes"
 
 
 function help() {
@@ -52,6 +61,10 @@ function help() {
 	    executes a command on the remote host
 	--ping , -p , ping , p
 	    executes ping with the specified parameters
+	--mount , -m , mount , m
+	    mounts the remote directory into the specified one
+	--umount , -u , umount , u
+	    unmounts the remote directory previously mounted with the 'mount' mode
 	--version , -V
 	    just prints the version numbre and exits
 	--help , -h , -?
@@ -63,6 +76,7 @@ function help() {
 	EOH
 	help_common
 } # help()
+
 
 function help_common() {
 	cat <<-EOH
@@ -260,6 +274,54 @@ function help_ping() {
 } # help_ping()
 
 
+function help_mount() {
+	cat <<-EOH
+	Mode: mount
+	  ${SCRIPTNAME}  <--mount|mount> [options] [MountPoint] [--] [SSHFS options]
+	
+	Mounts a remote directory into the specified one. The additional options are
+	passed to SSHFS.
+	If no mount point is specified, <BaseMountPoint>/<ServerName> is used
+	(<BaseMountPoint> can be specified as an option).
+	
+	SSHFS is required.
+	
+	Mount mode options:
+	--remotedir=REMOTEDIR [default: the remote home directory]
+	    mounts the specified remote directory
+	--basedir=BASEMOUNTPOINT ['${DefaultBaseMountPoint}']
+	    if mount directory is not specified, it's created under this directory
+	--remount
+	    if the target is already mounted, tries to remount it
+	--force , -f
+	    tries to push through errors to get the target mounted
+	
+	The common options are accepted:
+	
+	EOH
+} # help_mount()
+
+
+function help_umount() {
+	cat <<-EOH
+	Mode: mount
+	  ${SCRIPTNAME}  <--umount|umount> [options]
+	
+	Unmounts a remote directory that has been mounted before.
+	It needs the same remote directory argument as the mount command.
+	
+	Mount mode options:
+	--remotedir=REMOTEDIR [default: the remote home directory]
+	    ummounts the specified remote directory
+	--force , -f
+	    ask the system to force unmounting
+	
+	The common options are accepted (most are just ignored):
+	
+	EOH
+} # help_umount()
+
+
 function isFlagSet() {
 	local VARNAME="$1"
 	[[ -n "${!VARNAME//0}" ]]
@@ -313,7 +375,15 @@ function CMDDBG() {
 
 function DUMPVAR() {
 	local VarName="$1"
-	DBG "${VarName}='${!VarName}'"
+#	DBG "${VarName}='${!VarName}'"
+  local Value
+  Value="$(declare -p "$VarName" 2> /dev/null)"
+  local -i Code=$?
+  if [[ "$Code" == 0 ]]; then
+    DBG "${Value}"
+  else
+    DBG "'${VarName}' not defined!"
+  fi
 } # DUMPVAR()
 
 function DUMPVARS() {
@@ -488,8 +558,32 @@ function TransferData() {
 	local Destination="$1"
 	shift
 	local -a Sources=( "$@" )
-	Execute rsync -av -e ssh "${Sources[@]}" "$Destination"
+	local -a Options=( "${TransferOptions[@]}" )
+	[[ "${#Options[@]}" == 0 ]] && Options=( "${transfer_default_options[@]}" )
+	Execute rsync "${Options[@]}" -e ssh "${Sources[@]}" "$Destination"
 } # TransferData()
+
+
+function CheckExecutable() {
+  local ExecPath="$1"
+  
+  which "$ExecPath" || FATAL 2 "Can't find the required executable '${ExecPath}'."
+  
+} # CheckExecutable()
+
+
+function unmount() {
+  # Usage:  unmount DiskOrMountPoint [force]
+  # If a second argument is specified at all, unmount is forced.
+  local MountPoint="$1"
+  local Force="$2"
+  local ForceOpt=""
+  [[ -n "$Force" ]] && ForceOpt='-f'
+  # this is quite crude...
+  Execute --mute umount ${ForceOpt:+"$ForceOpt" }"$MountPoint"
+  [[ $res != 0 ]] && DBGN 4 "umount failed with exit code ${res}."
+  return $res
+} # unmount()
 
 
 ################################################################################
@@ -627,6 +721,10 @@ function parse_options_write() {
 					Destinations=( "${Destinations[@]}" "$CurrentDestination" )
 					Sources=( "${Sources[@]}" "${Param#--*=}" )
 					;;
+				( "--opt="* )
+               DBG "Adding option: ${Param#--*=}"
+					TransferOptions=( "${TransferOptions[@]}" "${Param#--*=}" )
+					;;
 				( * )
 					FATAL 1 "Invalid ${MODE} option '${Param}'."
 			esac
@@ -693,7 +791,7 @@ function parse_options_ping() {
 					FATAL 1 "Invalid ${MODE} mode option '${Param}'."
 			esac
 		else
-			NoMoreOptions=1
+			isFlagUnset NoMoreOptions && NoMoreOptions=1 && continue
 			Options=( "${Options[@]}" "$Param" )
 		fi
 
@@ -701,6 +799,100 @@ function parse_options_ping() {
 	done
 	return $NDigested
 } # parse_options_ping()
+
+
+function parse_options_mount() {
+
+	local -i iParam=$(( $1 - 1 ))
+	shift
+	local -i NDigested=0
+	
+	while [[ $iParam -lt $# ]]; do
+		let ++iParam
+		local Param="${!iParam}"
+
+		DBGN 3 "  is '${Param}' a ${MODE} option?"
+
+		# by default, assume we swallow one parameter only
+		let ++NDigested
+
+		if [[ "${Param:0:1}" == '-' ]] && isFlagUnset NoMoreOptions ; then
+			case "$Param" in
+				( "--remotedir="* )
+					Sources=( "${Param#--*=}" )
+					;;
+				( "--basedir="* )
+					BaseMountPoint="${Param#--*=}"
+					;;
+				( "--refresh" | "--reconnect" )
+					Options=( "${Options[@]}" '-o' 'reconnect' )
+					;;
+				( "--remount" )
+					DoRemount=1
+					;;
+				( "--force" | "-f" )
+					ForceMount=1
+					;;
+				( * )
+					FATAL 1 "Invalid ${MODE} option '${Param}'."
+			esac
+		else
+			isFlagUnset NoMoreOptions && NoMoreOptions=1 && continue
+			if [[ "${Param:0:1}" == '-' ]]; then
+				Options=( "${Options[@]}" "$Param" )
+			else
+				[[ "${#Destinations[@]}" == 0 ]] || FATAL 1 "Too many mount points specified ('${Param}')."
+				Destinations=( "$Param" )
+			fi
+			
+		fi
+
+		break
+	done
+	return $NDigested
+} # parse_options_mount()
+
+
+function parse_options_umount() {
+
+	local -i iParam=$(( $1 - 1 ))
+	shift
+	local -i NDigested=0
+	
+	while [[ $iParam -lt $# ]]; do
+		let ++iParam
+		local Param="${!iParam}"
+
+		DBGN 3 "  is '${Param}' a ${MODE} option?"
+
+		# by default, assume we swallow one parameter only
+		let ++NDigested
+
+		if [[ "${Param:0:1}" == '-' ]] && isFlagUnset NoMoreOptions ; then
+			case "$Param" in
+				( "--remotedir="* )
+					Sources=( "${Param#--*=}" )
+					;;
+				( "--force" | "-f" )
+					ForceMount=1
+					;;
+				( * )
+					FATAL 1 "Invalid ${MODE} option '${Param}'."
+			esac
+		else
+			isFlagUnset NoMoreOptions && NoMoreOptions=1 && continue
+			if [[ "${Param:0:1}" == '-' ]]; then
+				Options=( "${Options[@]}" "$Param" )
+			else
+				FATAL 1 "Unexpected argument ('${Param}')."
+			fi
+			
+		fi
+
+		break
+	done
+	return $NDigested
+} # parse_options_umount()
 
 
 function set_environment() {
@@ -778,13 +970,16 @@ while [[ $iParam -lt $nParams ]]; do
 		# if mode has not been set yet, give it a try
 		if [[ -z "$MODE" ]]; then
 			case "$Param" in
-				( '--help' | '-h' | '-?' | 'help' )  SetOperationMode 'help' ;;
-				( '--version' | '-V' | 'version' )   SetOperationMode 'version' ;;
-				( '--ssh' | 'ssh' )                  SetOperationMode 'ssh' ;;
-				( '--write' | '-w' | 'write' | 'w' ) SetOperationMode 'write' ;;
-				( '--read' | '-r' | 'read' | 'r' )   SetOperationMode 'read' ;;
-				( '--exec' | '-x' | 'exec' | 'x' )   SetOperationMode 'exec' ;;
-				( '--ping' | '-p' | 'ping' | 'p' )   SetOperationMode 'ping' ;;
+				( '--help' | '-h' | '-?' | 'help' )    SetOperationMode 'help' ;;
+				( '--version' | '-V' | 'version' )     SetOperationMode 'version' ;;
+				( '--ssh' | 'ssh' )                    SetOperationMode 'ssh' ;;
+				( '--write' | '-w' | 'write' | 'w' )   SetOperationMode 'write' ;;
+				( '--read' | '-r' | 'read' | 'r' )     SetOperationMode 'read' ;;
+				( '--exec' | '-x' | 'exec' | 'x' )     SetOperationMode 'exec' ;;
+				( '--ping' | '-p' | 'ping' | 'p' )     SetOperationMode 'ping' ;;
+				( '--mount' | '-m' | 'mount' | 'm' )   SetOperationMode 'mount' ;;
+				( '--umount' | '-u' | 'umount' | 'u' ) SetOperationMode 'umount' ;;
+				( '--unmount' | 'unmount' )            SetOperationMode 'umount' ;;
 			esac
 			[[ -n "$MODE" ]] && continue
 		fi
@@ -1044,6 +1239,43 @@ case "$MODE" in
 	( 'ping' )
 		Execute $ping "${Options[@]}" -- "$RemotePath"
 		ExitCode=$?
+		;;
+
+	#############################################################################
+	( 'mount' )
+		MountPoint="${Destinations[0]}"
+		: ${BaseMountPoint:="$DefaultBaseMountPoint"}
+		: ${MountPoint:="${BaseMountPoint:+${BaseMountPoint%/}/}${RemotePath}"}
+		
+		Execute $mkdir -p "$MountPoint"
+		LASTFATAL 1 "Can't write the mount point '${MountPoint}'"
+		
+		if isFlagSet DoRemount ; then
+			# this is quite crude...
+			unmount "$MountPoint" "$ForceMount"
+			res=$?
+			[[ $res != 0 ]] && DBGN 2 "umount failed with exit code ${res}. Ignoring."
+		fi
+		
+		RemoteDir="${RemotePath}:${Sources[0]}"
+		
+		Execute $sshfs "$RemoteDir" "$MountPoint" -o follow_symlinks "${Options[@]}"
+		ExitCode=$?
+		if [[ $ExitCode == 0 ]]; then
+			MSG "'${RemoteDir}' mounted at '${MountPoint}'. Unmount with \`umount '${MountPoint}'\`."
+		else
+			# attempt to clean up the residual of the mount, but leave the mount directory there
+			Execute --mute umount "$MountPoint"
+			res=$?
+			[[ $res != 0 ]] && DBGN 2 "Cleanup umount failed with exit code ${res}. Too bad."
+		fi
+		;;
+
+	#############################################################################
+	( 'umount' )
+		
+		RemoteDir="${RemotePath}:${Sources[0]}"
+		unmount "$RemoteDir" "$ForceMount"
 		;;
 
 	#############################################################################

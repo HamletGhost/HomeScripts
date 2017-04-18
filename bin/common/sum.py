@@ -95,7 +95,7 @@ def PrintResults(stats, printlist):
 		except AttributeError:
 			res = "['%s' not supported]" % key
 		PrintedList.append(res)
-	print " ".join(PrintedList)
+	print(" ".join(PrintedList))
 # PrintResults()
 
 
@@ -112,7 +112,7 @@ def ExpandList(l, sep = None):
 def PrintAllResults(stats, ColNumber, options):
 	for iStat, stat in enumerate(stats):
 		if stat is None: continue
-		if ColNumber: print "[%d] " % (iStat+1),
+		if ColNumber: print("[{}] ".format(iStat+1), end='')
 		PrintResults(stat, options.Print)
 	# for
 # PrintAllResults()
@@ -216,7 +216,7 @@ if __name__ == "__main__":
 				try:
 					source = open(sname, 'r')
 				except:
-					print >>sys.stderr, "Couldn't open input file '%s'." % sname
+					print("Couldn't open input file '{}'.".format(sname), file=sys.stderr)  
 					continue
 			# if ... else
 			
@@ -251,9 +251,11 @@ if __name__ == "__main__":
 						elif len(Columns) > 0: stats[iWord - 1].add(value)
 						else: stats[0].add(value)
 					except ValueError:
-						print >>sys.stderr, \
-						  "Not a number in input file '%s' word #%d line %d ('%s')." \
-						  % (sname, iWord, iLine, word)
+						print(
+						  "Not a number in input file '{}' word #{} line {} ('{}')."
+						  .format(sname, iWord, iLine, word),
+                                                  file=sys.stderr
+                                                  )
 						nErrors += 1
 				# for words
 				
@@ -270,7 +272,7 @@ if __name__ == "__main__":
 	PrintAllResults(stats, ColNumber, options)
 	
 	if nErrors > 0:
-		print >>sys.stderr, nErrors, "errors found."
+		print(nErrors, "errors found.", file=sys.stderr)
 		sys.exit(1)
 	sys.exit(0)
 # end of program

@@ -871,7 +871,7 @@ function canonical_path() {
 	while [[ "${Path: -1}" == '/' ]]; do
 		# short cut: if the path is root, we are done already
 		[[ "$Path" == '/' ]] && echo "/" && return 0
-		Path="${Path:0: -1}"
+		Path="${Path:0:${#Path}-1}"
 	done
 	
 	local -i Parents=0 # parent directories that we are not given to see
