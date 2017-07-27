@@ -87,6 +87,13 @@ function grid_proxy() {
 			Server="fermilab"
 			Command="/fermilab/sbnd/Role=Analysis"
 			;;
+		( 'ICARUS' )
+			###
+			### ICARUS setup
+			###
+			Server="fermilab"
+			Command="/fermilab/icarus/Role=Analysis"
+			;;
 		( * )
 			echo "No grid certificate settings for experiment '${Experiment}'" >&2
 			return 1
