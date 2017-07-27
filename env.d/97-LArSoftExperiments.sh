@@ -3,25 +3,61 @@
 Setup -Q LArSoft
 
 function isExperiment() {
+	
+	local -ar ExperimentNames=( 'MicroBooNE' 'DUNE' 'SBND' 'LArIAT' 'ArgoNeuT' 'ICARUS' )
+	local -A IFDHExperiments
+	local Name
+	for Name in "${ExperimentNames[@]}" ; do
+		IFDHExperiments[$Name]="${Name,,}"
+	done
+	
+	local Option
+	local Format='Default'
+	local OldOPTIND=$OPTIND
+	OPTIND=1
+	while getopts ':fh' Option "$@" ; do
+		case "$Option" in
+			( 'f' ) Format='IFDH' ;;
+			( * )
+				if [[ "$Option" == 'h' ]] || [[ "$OPTARG" == '?' ]]; then
+					cat <<-EOH
+					Detects and prints the experiment the machine belongs to.
+					
+					Options:
+					-f       print the name in "IFDH format"
+					-h , -?  print this help message
+					EOH
+					return 0
+				else
+					ERROR "${FUNCNAME} does not support option '-${OPTARG}'."
+					return 1
+				fi
+		esac
+	done
+	OPTIND=$OldOPTIND
+		
+	local Experiment
 	if [[ -d '/uboone' ]]; then
-		echo "MicroBooNE"
-		return 0
+		Experiment="MicroBooNE"
 	elif [[ -d '/dune' ]]; then
-		echo "DUNE"
-		return 0
+		Experiment="DUNE"
 	elif [[ -d '/lariat' ]]; then
-		echo "LArIAT"
-		return 0
+		Experiment="LArIAT"
 	elif [[ -d '/lar1nd' ]] || [[ -d '/sbnd' ]] ; then
-		echo "SBND"
-		return 0
+		Experiment="SBND"
 	elif [[ -d '/argoneut' ]]; then
-		echo "ArgoNeuT"
-		return 0
-	else
+		Experiment="ArgoNeuT"
+	fi
+	if [[ -z "$Experiment" ]]; then
 		ERROR "Can't detect the experiment."
 		return 1
 	fi
+	
+	case "$Format" in
+		( 'IFDH' )        echo "${IFDHExperiments[$Experiment]}" ;;
+		( 'Default' | * ) echo "$Experiment" ;;
+	esac
+	
 } # isExperiment()
 
 
@@ -46,7 +82,7 @@ function grid_proxy() {
 			;;
 		( 'SBND' )
 			###
-			### MicroBooNE setup
+			### SBND setup
 			###
 			Server="fermilab"
 			Command="/fermilab/sbnd/Role=Analysis"
@@ -63,3 +99,4 @@ function grid_proxy() {
 
 unalias grid_proxy >& /dev/null
 export -f grid_proxy
+
