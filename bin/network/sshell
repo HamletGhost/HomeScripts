@@ -564,6 +564,13 @@ function CheckExecutable() {
 } # CheckExecutable()
 
 
+function SetMountPoint() {
+	MountPoint="$1"
+	: ${BaseMountPoint:="$DefaultBaseMountPoint"}
+	: ${MountPoint:="${BaseMountPoint:+${BaseMountPoint%/}/}${RemotePath}"}
+} # SetMountPoint()
+
+
 ################################################################################
 ###
 ### parameter parser
@@ -1215,9 +1222,7 @@ case "$MODE" in
 
 	#############################################################################
 	( 'mount' )
-		MountPoint="${Destinations[0]}"
-		: ${BaseMountPoint:="$DefaultBaseMountPoint"}
-		: ${MountPoint:="${BaseMountPoint:+${BaseMountPoint%/}/}${RemotePath}"}
+		SetMountPoint "${Destinations[0]}"
 		
 		Execute $mkdir -p "$MountPoint"
 		LASTFATAL 1 "Can't write the mount point '${MountPoint}'"
@@ -1234,10 +1239,10 @@ case "$MODE" in
 		Execute $sshfs "$RemoteDir" "$MountPoint" -o follow_symlinks "${Options[@]}"
 		ExitCode=$?
 		if [[ $ExitCode == 0 ]]; then
-			MSG "'${RemoteDir}' mounted at '${MountPoint}'. Unmount with \`umount '${MountPoint}'\`."
+			MSG "'${RemoteDir}' mounted at '${MountPoint}'. Unmount with \`fusermount -u '${MountPoint}'\`."
 		else
 			# attempt to clean up the residual of the mount, but leave the mount directory there
-			Execute --mute umount "$MountPoint"
+			Execute --mute fusermount -u "$MountPoint"
 			res=$?
 			[[ $res != 0 ]] && DBGN 2 "Cleanup umount failed with exit code ${res}. Too bad."
 		fi
@@ -1245,9 +1250,8 @@ case "$MODE" in
 
 	#############################################################################
 	( 'umount' )
-		
-		RemoteDir="${RemotePath}:${Sources[0]}"
-		Execute umount "$RemoteDir"
+		SetMountPoint "${Destinations[0]}"	
+		Execute fusermount -u "$MountPoint"
 		;;
 
 	#############################################################################
