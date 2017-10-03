@@ -1,0 +1,45 @@
+# only use one spurious environment variable here: "DoSetup_LArSoftCI"
+function DoSetup_LArSoftCI() {
+   unset "${FUNCNAME[0]}" # immediately get rid of the global symbol we introduced
+   
+   local Experiment="$1"
+    
+   # 
+   # set up UPS as needed (here we rely on CVMFS)
+   # 
+   Setup UPS_CVMFS || return $?
+   
+   # 
+   # grid_proxy
+   # 
+   declare -f 'grid_proxy' > /dev/null
+   if [[ $? != 0 ]]; then
+      ERROR "grid_proxy function not available. Please check your local setup."
+      return 1
+   fi
+   
+   echo "Obtaining a grid proxy for ${Experiment:-"the default experiment ($(isExperiment))"}"
+   grid_proxy ${Experiment:+"$Experiment"} # || return $?
+   
+   # 
+   # CI package
+   # 
+   echo "Setting up lar_ci"
+   setup lar_ci || return $?
+   
+   #
+   # a reminder
+   #
+   cat <<EOM
+Reminder: to trigger an immediate, standard build:
+    
+    trigger --build-delay 0 --workflow experimentrepo
+    
+EOM
+   
+   return 0
+} # DoSetup_LArSoftCI()
+
+DoSetup_LArSoftCI
+
+

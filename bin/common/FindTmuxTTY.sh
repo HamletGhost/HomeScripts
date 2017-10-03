@@ -6,8 +6,10 @@
 # 
 #
 
+: ${tmux:="$(which tmux)"}
+
 function ListWindows() {
-	tmux list-windows -F "#{pane_tty} #{window_index} #{window_name}"
+	$tmux list-windows -F "#{pane_tty} #{window_index} #{window_name}"
 } # ListWindows()
 
 function isInList() {

@@ -2,12 +2,23 @@
 # function to setup a UPS repository
 #
 
+function isUPSrepositorySetUp() {
+	# RepoPath is the path where the setup script is stored.
+	local RepoPath="$1"
+	
+	tr ':' '\n' <<< "$PRODUCTS" | grep -q -w "$RepoPath"
+	
+} # isUPSrepositorySetUp()
+
 function SetupUPSrepository () {
 	local RepoDir="$1"
 	local Description="${2:-"UPS repository"}"
+	local Force="$3"
 	
 	[[ "${RepoDir:0:1}" == '/' ]] || RepoDir="${HOME}/${RepoDir}"
 	[[ -d "$RepoDir" ]] || return 1
+	
+	isUPSrepositorySetUp "$RepoDir" && [[ -z "$Force" ]] && return 0
 	
 	if [[ -r "${RepoDir}/setup" ]]; then
 		echo "Setting ${Description} at '${RepoDir}' up"

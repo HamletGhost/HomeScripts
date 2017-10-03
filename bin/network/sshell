@@ -18,13 +18,15 @@
 #   added "mount" mode
 # 1.5 (20161228, petrillo@fnal.gov)
 #   added "umount" mode
+# 1.6 (20170303, petrillo@fnal.gov)
+#   added forced unmount option
 #
 
 SCRIPTNAME="$(basename "$0")"
 SCRIPTDIR="$(dirname "$0")"
 CWD="$(pwd)"
 
-SCRIPTVERSION="1.5"
+SCRIPTVERSION="1.6"
 
 # program paths
 : ${kinit:="kinit"}
@@ -289,6 +291,10 @@ function help_mount() {
 	    mounts the specified remote directory
 	--basedir=BASEMOUNTPOINT ['${DefaultBaseMountPoint}']
 	    if mount directory is not specified, it's created under this directory
+	--remount
+	    if the target is already mounted, tries to remount it
+	--force , -f
+	    tries to push through errors to get the target mounted
 	
 	The common options are accepted:
 	
@@ -306,7 +312,9 @@ function help_umount() {
 	
 	Mount mode options:
 	--remotedir=REMOTEDIR [default: the remote home directory]
-	    mounts the specified remote directory
+	    ummounts the specified remote directory
+	--force , -f
+	    ask the system to force unmounting
 	
 	The common options are accepted (most are just ignored):
 	
@@ -815,6 +823,9 @@ function parse_options_mount() {
 				( "--remount" )
 					DoRemount=1
 					;;
+				( "--force" | "-f" )
+					ForceMount=1
+					;;
 				( * )
 					FATAL 1 "Invalid ${MODE} option '${Param}'."
 			esac
@@ -854,6 +865,9 @@ function parse_options_umount() {
 			case "$Param" in
 				( "--remotedir="* )
 					Sources=( "${Param#--*=}" )
+					;;
+				( "--force" | "-f" )
+					ForceMount=1
 					;;
 				( * )
 					FATAL 1 "Invalid ${MODE} option '${Param}'."
@@ -1229,7 +1243,7 @@ case "$MODE" in
 		
 		if isFlagSet DoRemount ; then
 			# this is quite crude...
-			Execute --mute umount "$MountPoint"
+			unmount "$MountPoint" "$ForceMount"
 			res=$?
 			[[ $res != 0 ]] && DBGN 2 "umount failed with exit code ${res}. Ignoring."
 		fi
