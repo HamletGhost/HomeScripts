@@ -4,8 +4,14 @@
 # 
 # Very primitive error handling here. Sorry.
 #
+# Changes:
+# [v1.0]
+#   original version
+# 20170408 [v1.1]
+#   added --genres option
+#
 
-__doc__ = """"Creates a script assigning ID3 tags to MP3 files.
+__doc__ = """Creates a script assigning ID3 tags to MP3 files.
 
 The input file is interpreted as a sequence of "key: value" pairs.
 Lines starting with a "#" are interpreted as comments.
@@ -28,12 +34,16 @@ file name (that is, the "file:" key is to be considered optional).
 The file path element must be the first one of the block of metadata pertaining
 that file.
 """
+__version__="1.1"
+
 
 import sys
 import os.path
 import logging
 import copy
 import re
+
+WindowWidth = 80
 
 class EmptyObject: pass
 
@@ -198,6 +208,31 @@ class ID3GenresClass:
     return ID3GenresClass.Codes[ID]
   # Genre()
   
+  @staticmethod
+  def Print(out):
+    print >>out, \
+      "The following %d genres are supported:" % len(ID3GenresClass.Codes)
+    codePadding = len(str(max(ID3GenresClass.Codes.keys())))
+    genrePadding = max(map(len, ID3GenresClass.Codes.values()))
+    items = [
+      "  [%*d] %-*s" % (codePadding, code, genrePadding, codeName)
+      for code, codeName in ID3GenresClass.Codes.items()
+      ]
+    itemLength = max(map(len, items))
+    columns = WindowWidth / itemLength
+    left = columns
+    for item in items:
+      print >>out, "%-*s" % (itemLength, item),
+      left -= 1
+      if left == 0:
+        print >>out
+        left = columns
+      # if
+    # for
+    if left != 0: print >>out
+
+  # Print()
+
 # class ID3GenresClass
 
 
@@ -411,10 +446,18 @@ if __name__ == "__main__":
    
    parser.add_argument("--output", action="store", dest="OutputFile",
      help="output file [default: stdout]", default=None)
-   parser.add_argument('--version', action='version', version='%(prog)s 1.0')
+   parser.add_argument('--genres', action='store_true', dest='ListGenres',
+     help="List all supported genres (and their codes)")
+   parser.add_argument('--version', action='version',
+     version='%(prog)s v' + __version__)
    
    arguments = parser.parse_args()
    
+   if arguments.ListGenres:
+     ID3GenresClass.Print(sys.stdout)
+     sys.exit(0)
+   # if list genres
+
    if not arguments.InputFiles: arguments.InputFiles = [ "" ]
    
    if arguments.OutputFile is None: OutputFile = sys.stdout

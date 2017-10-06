@@ -574,18 +574,11 @@ function CheckExecutable() {
 } # CheckExecutable()
 
 
-function unmount() {
-  # Usage:  unmount DiskOrMountPoint [force]
-  # If a second argument is specified at all, unmount is forced.
-  local MountPoint="$1"
-  local Force="$2"
-  local ForceOpt=""
-  [[ -n "$Force" ]] && ForceOpt='-f'
-  # this is quite crude...
-  Execute --mute umount ${ForceOpt:+"$ForceOpt" }"$MountPoint"
-  [[ $res != 0 ]] && DBGN 4 "umount failed with exit code ${res}."
-  return $res
-} # unmount()
+function SetMountPoint() {
+	MountPoint="$1"
+	: ${BaseMountPoint:="$DefaultBaseMountPoint"}
+	: ${MountPoint:="${BaseMountPoint:+${BaseMountPoint%/}/}${RemotePath}"}
+} # SetMountPoint()
 
 
 ################################################################################
@@ -1243,9 +1236,7 @@ case "$MODE" in
 
 	#############################################################################
 	( 'mount' )
-		MountPoint="${Destinations[0]}"
-		: ${BaseMountPoint:="$DefaultBaseMountPoint"}
-		: ${MountPoint:="${BaseMountPoint:+${BaseMountPoint%/}/}${RemotePath}"}
+		SetMountPoint "${Destinations[0]}"
 		
 		Execute $mkdir -p "$MountPoint"
 		LASTFATAL 1 "Can't write the mount point '${MountPoint}'"
@@ -1262,10 +1253,10 @@ case "$MODE" in
 		Execute $sshfs "$RemoteDir" "$MountPoint" -o follow_symlinks "${Options[@]}"
 		ExitCode=$?
 		if [[ $ExitCode == 0 ]]; then
-			MSG "'${RemoteDir}' mounted at '${MountPoint}'. Unmount with \`umount '${MountPoint}'\`."
+			MSG "'${RemoteDir}' mounted at '${MountPoint}'. Unmount with \`fusermount -u '${MountPoint}'\`."
 		else
 			# attempt to clean up the residual of the mount, but leave the mount directory there
-			Execute --mute umount "$MountPoint"
+			Execute --mute fusermount -u "$MountPoint"
 			res=$?
 			[[ $res != 0 ]] && DBGN 2 "Cleanup umount failed with exit code ${res}. Too bad."
 		fi
@@ -1273,9 +1264,8 @@ case "$MODE" in
 
 	#############################################################################
 	( 'umount' )
-		
-		RemoteDir="${RemotePath}:${Sources[0]}"
-		unmount "$RemoteDir" "$ForceMount"
+		SetMountPoint "${Destinations[0]}"	
+		Execute fusermount -u "$MountPoint"
 		;;
 
 	#############################################################################
