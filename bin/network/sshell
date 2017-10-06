@@ -20,6 +20,8 @@
 #   added "umount" mode
 # 1.6 (20170303, petrillo@fnal.gov)
 #   added forced unmount option
+# 1.7 (20170811, petrillo@fnal.gov)
+#   login name not passed any more by default
 #
 
 SCRIPTNAME="$(basename "$0")"
@@ -1103,8 +1105,6 @@ if [[ -n "$AsRemoteUser" ]]; then
 	: ${KerberosUser:="$RemoteUser"}
 elif isFlagSet NoAsRemoteUser ; then
 	AsRemoteUser=''
-else
-	AsRemoteUser="$RemoteUser"
 fi
 
 declare RemoteFullPath="${AsRemoteUser:+${AsRemoteUser}@}${RemotePath}"
