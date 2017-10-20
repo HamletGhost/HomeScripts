@@ -1,3 +1,13 @@
 ConfigureProgramDirs /Users/petrillo/homebrew
 export HOMEBREW_CASK_OPTS="--appdir=${HOME}/Applications --caskroom=${HOME}/opt/Caskroom"
 
+if which greadlink >& /dev/null ; then
+  if declare -f greadlink ; then
+    echo "Unsetting 'greadlink' function; now: $(which greadlink)."
+    unset greadlink
+  fi
+  if alias greadlink >& /dev/null ; then
+    echo "Unsetting 'greadlink' alias; now: $(which greadlink)."
+    unalias greadlink
+  fi
+fi
