@@ -4,10 +4,14 @@ function DoSetup_CVMFS() {
 	Mounts=( {fermilab,oasis,uboone,dune,sbnd,lariat,icarus}.opensciencegrid.org )
 	local Mount
 	local -i nErrors=0
+	
+	local mount="$(which mount)"
+	[[ ! -e "$mount" ]] && echo "Can't find mount ('${mount}')!" && return 2
+	
 	for Mount in "${Mounts[@]}" ; do
 		local MountPoint="/cvmfs/${Mount}"
 		echo "Enabling ${Mount}"
-		sudo /sbin/mount -t cvmfs "$Mount" "$MountPoint" || let ++nErrors
+		sudo "$mount" -t cvmfs "$Mount" "$MountPoint" || let ++nErrors
 	done
 	return $nErrors
 } # DoSetup_CVMFS()
