@@ -394,6 +394,10 @@ function DUMPVARS() {
 	done
 } # DUMPVARS()
 
+function isOSX() {
+	[[ "$(uname)" == 'Darwin' ]]
+}
+
 
 function MSG() { isFlagSet QUIET || echo "$@" ; }
 
@@ -578,6 +582,22 @@ function SetMountPoint() {
 	: ${MountPoint:="${BaseMountPoint:+${BaseMountPoint%/}/}${RemotePath}"}
 } # SetMountPoint()
 
+
+function Mount() {
+	if isOSX && ! which fusermount >& /dev/null ; then
+		Execute --mute mount "$MountPoint"
+	else
+		Execute --mute fusermount "$MountPoint"
+	fi
+}
+
+function Unmount() {
+	if isOSX && ! which fusermount >& /dev/null ; then
+		Execute --mute umount "$MountPoint"
+	else
+		Execute --mute fusermount -u "$MountPoint"
+	fi
+}
 
 ################################################################################
 ###
@@ -1243,7 +1263,7 @@ case "$MODE" in
 		
 		if isFlagSet DoRemount ; then
 			# this is quite crude...
-			unmount "$MountPoint" "$ForceMount"
+			Unmount "$MountPoint" # "$ForceMount"
 			res=$?
 			[[ $res != 0 ]] && DBGN 2 "umount failed with exit code ${res}. Ignoring."
 		fi
@@ -1256,7 +1276,7 @@ case "$MODE" in
 			MSG "'${RemoteDir}' mounted at '${MountPoint}'. Unmount with \`fusermount -u '${MountPoint}'\`."
 		else
 			# attempt to clean up the residual of the mount, but leave the mount directory there
-			Execute --mute fusermount -u "$MountPoint"
+			Unmount "$MountPoint"
 			res=$?
 			[[ $res != 0 ]] && DBGN 2 "Cleanup umount failed with exit code ${res}. Too bad."
 		fi
@@ -1265,7 +1285,7 @@ case "$MODE" in
 	#############################################################################
 	( 'umount' )
 		SetMountPoint "${Destinations[0]}"	
-		Execute fusermount -u "$MountPoint"
+		Unmount "$MountPoint"
 		;;
 
 	#############################################################################
