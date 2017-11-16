@@ -45,6 +45,8 @@ function isExperiment() {
 		Experiment="LArIAT"
 	elif [[ -d '/lar1nd' ]] || [[ -d '/sbnd' ]] ; then
 		Experiment="SBND"
+	elif [[ -d '/icarus' ]]; then
+		Experiment="ICARUS"
 	elif [[ -d '/argoneut' ]]; then
 		Experiment="ArgoNeuT"
 	fi
