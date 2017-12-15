@@ -1,3 +1,3 @@
 echo "Setting UPS (SBND repository) up from CVMFS"
-source '/cvmfs/sbnd.opensciencegrid.org/products/setup'
+source '/cvmfs/sbnd.opensciencegrid.org/products/sbnd/setup'
 
