@@ -22,13 +22,15 @@
 #   added forced unmount option
 # 1.7 (20170811, petrillo@fnal.gov)
 #   login name not passed any more by default
+# 1.8 (20171202, petrillo@fnal.gov)
+#   added --ip option
 #
 
 SCRIPTNAME="$(basename "$0")"
 SCRIPTDIR="$(dirname "$0")"
 CWD="$(pwd)"
 
-SCRIPTVERSION="1.6"
+SCRIPTVERSION="1.8"
 
 # program paths
 : ${kinit:="kinit"}
@@ -106,6 +108,10 @@ function help_common() {
 	--domain=DOMAIN
 	    if specified, it is appended to the host name unless the latter already
 	    includes a domain
+	--ip=IP4ADDRESS
+	    after resolving the remote host IP, replaces the lowest IP4 bytes with
+	    the specified ones; for example, on a host resolving to 192.168.1.1,
+	    \`--ip=129.3\` will result in a target host IP of 192.168.129.3
 	--autohost[=ScriptName]
 	    if no host name is specified, it uses the script name as host name,
 	    unless the script name matches ScriptName; if ScriptName is omitted,
@@ -551,6 +557,7 @@ function Execute() {
 			DBGN 3 "Standard input restored to '${OldStdIn}'"
 		fi
 
+
 	fi
 
 	return $ExitCode
@@ -581,7 +588,7 @@ function CheckExecutable() {
 function SetMountPoint() {
 	MountPoint="$1"
 	: ${BaseMountPoint:="$DefaultBaseMountPoint"}
-	: ${MountPoint:="${BaseMountPoint:+${BaseMountPoint%/}/}${RemotePath}"}
+	: ${MountPoint:="${BaseMountPoint:+${BaseMountPoint%/}/}${RemoteHostID}"}
 } # SetMountPoint()
 
 
@@ -600,6 +607,102 @@ function Unmount() {
 		Execute --mute fusermount -u "$MountPoint"
 	fi
 }
+
+function isIP6() {
+	local IP="$1"
+	[[ -n "IP" ]] && [[ "$IP" =~ ^([0-9A-Fa-f]{1,4})?(:([0-9A-Fa-f]{0,4})){0,7}$ ]]
+} # isIP6()
+
+function isIP4() {
+	local IP="$1"
+	[[ -n "$IP" ]] && [[ "$IP" =~ ^([0-9]{1,3}|[0-9A-Fa-f]{2})?(\.([0-9]{1,3}|[0-9A-Fa-f]{2})?){0,3}$ ]]
+} # isIP4()
+
+function SplitAt() {
+	local -r Sep="$1"
+	local -r N="$2"
+	local Src="$3"
+	
+	DBGN 4 "Splitting '${Src}' with '${Sep}'"
+	local -a Tokens
+	if [[ -n "$Src" ]]; then
+		local Token="${Src%%${Sep}*}"
+		DBGN 5 "  first token: '${Token}'"
+		Tokens=( "${Sep}${Token}" )
+		Src="${Src#${Token}}"
+		while [[ -n "$Src" ]]; do
+			# first character now is a separator
+			Src="${Src#${Sep}}"
+			Token="${Src%%${Sep}*}"
+			DBGN 5 "  found another: '${Token}'"
+			Tokens+=( "${Sep}${Token}" )
+			Src="${Src#${Token}}"
+		done
+	fi
+	local -i NTokens="${#Tokens[@]}"
+	DBGN 4 "  => ${NTokens} tokens found"
+	local -a Result
+	for (( ; NTokens < N ; ++NTokens )); do
+		Result+=( "$Sep" )
+	done
+	Result+=( "${Tokens[@]}" )
+	DBGN 3 "Split resulted in ${#Result[@]} items: $(declare -p Result)"
+	echo "${Result[@]}"
+} # SplitAt()
+
+function ParseIPoverride() {
+	# prints an array, first element being IP4, IP6 or {,IP4-,IP6-}ERROR,
+	# all others being a character (':' or '.') followed by an optional
+	# piece of address, from the most significant to the least one
+	local IP="$1"
+	local -a Result
+	local -i Max
+	if isIP4 "$IP" ; then
+		Max=4
+		Result=( 'IP4' $(SplitAt '.' "$Max" "$IP") )
+	elif isIP6 "$IP" ; then
+		Max=8
+		Result=( 'IP6' $(SplitAt ':' "$Max" "$IP") )
+	else
+		Max=0
+		Result=( 'ERROR' )
+	fi
+	local res=0
+	[[ "${#Result[@]}" -gt $((Max + 1)) ]] && Result[0]="${Result[0]}-ERROR"
+	echo "${Result[*]}"
+	[[ "${Result[0]//ERROR}" == "${Result[0]}" ]]
+} # ParseIPoverride()
+
+function ResolveIP() {
+	local Host="$1"
+	resolveip -s "$Host"
+} # ResolveIP()
+
+function OverrideIP() {
+	local Host="$1"
+	local HostIP="$(ResolveIP "$Host")"
+	[[ -n "$HostIP" ]] || FATAL 1 "Failed to retrieve the IP address of host '${Host}'"
+	DBGN 2 "Host '${Host}' => ${HostIP}"
+	
+	local HostIPtokens=( $(ParseIPoverride "$HostIP") )
+	[[ -n "${HostIPtokens[0]}" ]] || FATAL 1 "Failure to parse ${Host} IP ${HostIP}"
+	[[ "${HostIPtokens[0]}" =~ ERROR ]] && FATAL 1 "Failure to parse ${Host} IP ${HostIP} (${HostIPtokens[0]})"
+	
+	[[ "${HostIPtokens[0]}" == "${IPOverride[0]}" ]] || FATAL 1 "Host ${Host} returned IP ${HostIP} (${HostIPtokens[0]}), but override is specified as ${IPOverride[0]}."
+	
+	local -ri SepSize=1
+	local OverriddenIP
+	local -i N="${#HostIPtokens[@]}"
+	local -i i
+	for (( i = 1; i < N ; ++i )); do
+		local Token="${HostIPtokens[i]}"
+		local OverriddenToken="${IPOverride[i]}"
+		[[ "${#OverriddenToken}" -gt $SepSize ]] && Token="$OverriddenToken"
+		OverriddenIP+="$Token"
+	done
+	echo "${OverriddenIP:${SepSize}}"
+} # OverrideIP()
+
 
 ################################################################################
 ###
@@ -636,6 +739,7 @@ function parse_options_common() {
 			( "--server="* | '--host='* )
 			                      RemoteHost="${Param#--*=}" ;;
 			( "--domain="* )      RemoteDomain="${Param#--*=}" ;;
+			( "--ip="* )          IPOverride=( $(ParseIPoverride "${Param#--ip=}") ) ;;
 			( "--sshopt="* )      ssh_options=( "${ssh_options[@]}" "${Param#--*=}" ) ;;
 			( "--nodefopts="* )   NoDefaultSSHoptions=1 ;;
 			( "--autohost" )      AutoHost=( "${AutoHost[@]}" 'sshell' ) ;;
@@ -1111,6 +1215,16 @@ declare RemotePath="${RemoteHostName}${RemoteDomainFromHostName:+.${RemoteDomain
 
 DBGN 3 "Complete host path:   '${RemotePath}'"
 
+declare RemoteHostID="$RemotePath"
+if [[ -n "${IPOverride[0]}" ]]; then
+	RemoteHostIP=$(OverrideIP "$RemotePath")
+	LASTFATAL "aborting."
+	if [[ -n "$RemoteHostIP" ]]; then
+		RemoteHostID="$RemoteHostIP"
+		DBGN 2 "Overridden host IP: ${RemoteHostIP}"
+		MSG "Overriding remote host ${RemotePath} as ${RemoteHostID}"
+	fi
+fi
 
 
 if [[ -n "$AsRemoteUser" ]]; then
@@ -1120,7 +1234,7 @@ elif isFlagSet NoAsRemoteUser ; then
 	AsRemoteUser=''
 fi
 
-declare RemoteFullPath="${AsRemoteUser:+${AsRemoteUser}@}${RemotePath}"
+declare RemoteFullPath="${AsRemoteUser:+${AsRemoteUser}@}${RemoteHostID}"
 DBGN 2 "Complete user path:   '${RemoteFullPath}'"
 
 set_environment "$MODE"
@@ -1181,7 +1295,7 @@ declare -i ExitCode=0
 case "$MODE" in
 	#############################################################################
 	( 'ssh' )
-		Execute $ssh ${AsRemoteUser:+-l "$AsRemoteUser"} "${ssh_options[@]}" "$RemotePath"
+		Execute $ssh ${AsRemoteUser:+-l "$AsRemoteUser"} "${ssh_options[@]}" "$RemoteHostID"
 		ExitCode=$?
 		;;
 
@@ -1244,13 +1358,13 @@ case "$MODE" in
 
 	#############################################################################
 	( 'exec' )
-		Execute $ssh -l "$RemoteUser" "${ssh_options[@]}" "$RemotePath" "${Command[@]}"
+		Execute $ssh -l "$RemoteUser" "${ssh_options[@]}" "$RemoteHostID" "${Command[@]}"
 		ExitCode=$?
 		;;
 
 	#############################################################################
 	( 'ping' )
-		Execute $ping "${Options[@]}" -- "$RemotePath"
+		Execute $ping "${Options[@]}" -- "$RemoteHostID"
 		ExitCode=$?
 		;;
 
@@ -1268,7 +1382,7 @@ case "$MODE" in
 			[[ $res != 0 ]] && DBGN 2 "umount failed with exit code ${res}. Ignoring."
 		fi
 		
-		RemoteDir="${RemotePath}:${Sources[0]}"
+		RemoteDir="${RemoteHostID}:${Sources[0]}"
 		
 		Execute $sshfs "$RemoteDir" "$MountPoint" -o follow_symlinks "${Options[@]}"
 		ExitCode=$?
