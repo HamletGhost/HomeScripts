@@ -1,0 +1,45 @@
+#!/bin/sh
+
+SCRIPTNAME="$(basename "$0")"
+
+SERVER="$(hostname)"
+
+: ${SYNERGY_EXEC:=$(which "synergy-core")}
+
+: ${CONFIGURATION_KEY:="${SCRIPTNAME#synergy-}"}
+
+function CloseAllSynergy() {
+	if ps -C "$SYNERGY_EXEC" > /dev/null ; then
+		echo "Closing synergy clients and servers already running."
+		killall "$SYNERGY_EXEC"
+	fi
+}
+
+declare -r ClientTag='clientOf'
+
+declare -a CLIENTS=( ${CONFIGURATION_KEY//+/ } )
+
+if [[ "${CLIENTS[0]}" == "$ClientTag" ]]; then
+	
+	Address="$1"
+	
+	CloseAllSynergy
+	"$SYNERGY_EXEC" --client ${DISPLAY:+--display "$DISPLAY"} ${Address:+"$Address"}
+	
+else
+	: ${CONFIGFILE:="${HOME}/local/etc/synergy/${CONFIGURATION_KEY}.conf"}
+	if [[ ! -r "$CONFIGFILE" ]]; then
+		echo "Configuration file '${CONFIGFILE}' not available!" >&2
+		exit 2
+	fi
+	
+	CloseAllSynergy
+	# "$SYNERGY_EXEC" --server --config "$CONFIGFILE" ${DISPLAY:+--display "$DISPLAY"} --debug DEBUG5 --no-daemon
+	"$SYNERGY_EXEC" --server --config "$CONFIGFILE" --enable-drag-drop ${DISPLAY:+--display "$DISPLAY"}
+	
+	for Client in "${CLIENTS[@]}" ; do
+		echo "Turning on synergy client on '${Client}'"
+		# we explicitly disable X forwarding, since we don't want the client to send information to *our* X server!
+		ssh -x "$Client" "synergy-clientOf+${SERVER}" "$HOSTNAME"
+	done
+fi
