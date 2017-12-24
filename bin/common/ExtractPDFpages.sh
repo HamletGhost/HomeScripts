@@ -8,6 +8,7 @@ SCRIPTNAME="$(basename "$0")"
 
 : ${gs:="gs"}
 
+[[ -z "$pdfinfo" ]] && pdfinfo=( "pdfinfo" )
 
 function isFlagSet() {
 	local VarName="$1"
@@ -19,7 +20,7 @@ function help() {
 	cat <<-EOH
 	Extracts the specified range of pages from a PDF file.
 
-	Usage:  ${SCRIPTNAME}  [options] SourceFile FirstPage[-LastPage]
+	Usage:  ${SCRIPTNAME}  [options] SourceFile FirstPage[-[LastPage]]
 
 	If LastPage is not specified, only one page is extracted.
 
@@ -43,12 +44,20 @@ function FATAL() {
 } # FATAL()
 
 
+function PDFpages() {
+  local File="$1"
+  "${pdfinfo[@]}" "$File" | grep -E '^Pages:' | sed -e 's/^Pages: *//g'
+} # PDFpages()
+
+
 function ExtractPages() {
 	# Usage:  ExtractPages SourceFile OutputFile FirstPage LastPage
 	local SourceFile="$1"
 	local OutputFile="$2"
 	local -i FirstPage="$3"
-	local -i LastPage="${4:-${FirstPage}}"
+	local LastPage="${4:-${FirstPage}}"
+
+	[[ "$LastPage" == '-' ]] && LastPage="$(PDFpages "$SourceFile")"
 
 	local SourceName="$(basename "$SourceFile")"
 	
@@ -135,7 +144,8 @@ done
 declare -i nErrors=0
 for PagesRange in "${Ranges[@]}" ; do
 	declare -i FirstPage="${PagesRange%-*}"
-	declare -i LastPage="${PagesRange#*-}"
+	declare LastPage="${PagesRange#*-}"
+	[[ -z "$LastPage" ]] && LastPage='-'
 
 	ExtractPages "$SourceFile" "$OutputFile" "$FirstPage" "$LastPage"
 	res=$?
