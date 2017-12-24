@@ -2,8 +2,8 @@ Setup UPS_LArSoft || return
 
 declare -i nErrors=0
 Setup UPS_MicroBooNE_only || let ++nErrors
-# Setup UPS_SBND_only || let ++nErrors
-# Setup UPS_DUNE_only || let ++nErrors
+Setup UPS_SBND_only || let ++nErrors
+Setup UPS_DUNE_only || let ++nErrors
 Setup UPS_LArIAT_only || let ++nErrors
 Setup UPS_ICARUS_only || let ++nErrors
 
