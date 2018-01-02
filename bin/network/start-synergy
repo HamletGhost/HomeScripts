@@ -1,10 +1,13 @@
 #!/bin/sh
 
 SCRIPTNAME="$(basename "$0")"
+SCRIPTDIR="$(dirname "$0")"
 
 SERVER="$(hostname)"
 
-: ${SYNERGY_EXEC:=$(which "synergy-core")}
+SynergyExecName='synergy-core'
+
+: ${SYNERGY_EXEC:=$(which "$SynergyExecName")}
 
 : ${CONFIGURATION_KEY:="${SCRIPTNAME#synergy-}"}
 
@@ -18,6 +21,11 @@ function CloseAllSynergy() {
 declare -r ClientTag='clientOf'
 
 declare -a CLIENTS=( ${CONFIGURATION_KEY//+/ } )
+
+if [[ ! -x "$SYNERGY_EXEC" ]]; then
+	echo "${HOSTNAME}: can't find Synergy executable '${SynergyExecName}'${SYNERGY_EXEC:+" (expanded: '${SYNERGY_EXEC}')"}." >&2
+	exit 2
+fi
 
 if [[ "${CLIENTS[0]}" == "$ClientTag" ]]; then
 	
@@ -37,9 +45,14 @@ else
 	# "$SYNERGY_EXEC" --server --config "$CONFIGFILE" ${DISPLAY:+--display "$DISPLAY"} --debug DEBUG5 --no-daemon
 	"$SYNERGY_EXEC" --server --config "$CONFIGFILE" --enable-drag-drop ${DISPLAY:+--display "$DISPLAY"}
 	
+	RemoteScriptDir="${SCRIPTDIR#${HOME}/}"
+	
 	for Client in "${CLIENTS[@]}" ; do
 		echo "Turning on synergy client on '${Client}'"
 		# we explicitly disable X forwarding, since we don't want the client to send information to *our* X server!
-		ssh -x "$Client" "synergy-clientOf+${SERVER}" "$HOSTNAME"
+		# also, we need to specify the path to synergy-clientOf+*;
+		# we assume it's the same as here:
+		# user's enviromnent should be fully set up to allow bash to find it
+		ssh -x "$Client" "bash --login -c \"${RemoteScriptDir:-.}/synergy-clientOf+${SERVER}\" \"$HOSTNAME\""
 	done
 fi
