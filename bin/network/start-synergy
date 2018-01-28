@@ -2,14 +2,14 @@
 
 SCRIPTNAME="$(basename "$0")"
 
-SERVER="$(hostname)"
+SynergyCore="synergy-core"
 
-: ${SYNERGY_EXEC:=$(which "synergy-core")}
+: ${SYNERGY_EXEC:=$(which "$SynergyCore")}
 
 : ${CONFIGURATION_KEY:="${SCRIPTNAME#synergy-}"}
 
 function CloseAllSynergy() {
-	if ps -C "$SYNERGY_EXEC" > /dev/null ; then
+	if ps -C "$SynergyCore" > /dev/null ; then
 		echo "Closing synergy clients and servers already running."
 		killall "$SYNERGY_EXEC"
 	fi
@@ -34,6 +34,8 @@ if [[ "${CLIENTS[0]}" == "$ClientTag" ]]; then
 	Exec "$SYNERGY_EXEC" --client ${DISPLAY:+--display "$DISPLAY"} ${Address:+"$Address"}
 	
 else
+	Server="$(hostname)"
+
 	: ${CONFIGFILE:="${HOME}/local/etc/synergy/${CONFIGURATION_KEY}.conf"}
 	if [[ ! -r "$CONFIGFILE" ]]; then
 		echo "Configuration file '${CONFIGFILE}' not available!" >&2
@@ -51,6 +53,7 @@ else
 		# we explicitly disable X forwarding, since we don't want the client to send information to *our* X server!
 		# also, since the synergy-clientOf+* scripts are expected to be in user's area,
 		# user's enviromnent should be fully set up to allow bash to find it
-		Exec ssh -x "$Client" "bash -i -c 'synergy-clientOf+${SERVER} ${HostName}'"
+	#	Exec ssh -x "$Client" "bash -i -c 'synergy-clientOf+${SERVER} ${HostName}'"
+		Exec ssh -x "$Client" "bash --login -c synergy-clientOf+${Server}"
 	done
 fi
