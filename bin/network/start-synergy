@@ -53,7 +53,7 @@ else
 		# we explicitly disable X forwarding, since we don't want the client to send information to *our* X server!
 		# also, since the synergy-clientOf+* scripts are expected to be in user's area,
 		# user's enviromnent should be fully set up to allow bash to find it
-	#	Exec ssh -x "$Client" "bash -i -c 'synergy-clientOf+${SERVER} ${HostName}'"
-		Exec ssh -x "$Client" "bash --login -c synergy-clientOf+${Server}"
+	#	Exec ssh -x "$Client" "bash --login -i -c 'synergy-clientOf+${SERVER} ${HostName}'"
+		Exec ssh -x "$Client" "bash --login -i -c synergy-clientOf+${Server}"
 	done
 fi

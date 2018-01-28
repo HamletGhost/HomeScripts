@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 #
 # Prepares a script tagging audio files.
 # 
@@ -9,6 +9,10 @@
 #   original version
 # 20170408 [v1.1]
 #   added --genres option
+# 20170408 [v1.2]
+#   python 3; changed format of --genres
+# 20170408 [v1.3]
+#   added --pause option
 #
 
 __doc__ = """Creates a script assigning ID3 tags to MP3 files.
@@ -34,16 +38,17 @@ file name (that is, the "file:" key is to be considered optional).
 The file path element must be the first one of the block of metadata pertaining
 that file.
 """
-__version__="1.1"
+__version__ = "1.2"
 
 
 import sys
+import os
 import os.path
 import logging
 import copy
+import math
 import re
 
-WindowWidth = 80
 
 class EmptyObject: pass
 
@@ -185,7 +190,7 @@ class ID3GenresClass:
     if isinstance(key, int): return key == code_key
     
     # otherwise match the string(s)
-    if isinstance(code_values, basestring): code_values = ( code_values, )
+    if isinstance(code_values, str): code_values = ( code_values, )
     for value in code_values:
       if value.lower() == key: return True
     else: return False
@@ -210,26 +215,30 @@ class ID3GenresClass:
   
   @staticmethod
   def Print(out):
-    print >>out, \
-      "The following %d genres are supported:" % len(ID3GenresClass.Codes)
+    print(
+      "The following {} genres are supported:"
+        .format(len(ID3GenresClass.Codes)),
+      file=out
+      )
     codePadding = len(str(max(ID3GenresClass.Codes.keys())))
     genrePadding = max(map(len, ID3GenresClass.Codes.values()))
     items = [
-      "  [%*d] %-*s" % (codePadding, code, genrePadding, codeName)
-      for code, codeName in ID3GenresClass.Codes.items()
+    #  "  {}  ({})".format(genreName, code, )
+      "  {}".format(genreName, code, )
+      for code, genreName in sorted(ID3GenresClass.Codes.items(), key=lambda p: p[1])
       ]
     itemLength = max(map(len, items))
-    columns = WindowWidth / itemLength
-    left = columns
-    for item in items:
-      print >>out, "%-*s" % (itemLength, item),
-      left -= 1
-      if left == 0:
-        print >>out
-        left = columns
-      # if
+    try: WindowWidth = os.get_terminal_size().columns
+    except OSError: WindowWidth = 80
+    columns = int(WindowWidth / itemLength)
+    rows = int(math.ceil(len(items)/columns))
+    for row in range(rows):
+      for col in range(columns):
+        iItem = col * rows + row
+        if iItem >= len(items): break
+        print("{0:<{1}}".format(items[iItem], itemLength), file=out, end='')
+      print(file=out)
     # for
-    if left != 0: print >>out
 
   # Print()
 
@@ -259,11 +268,12 @@ class BashQuoterClass:
 
 
 class ProcessorClass:
-   def __init__(self):
+   def __init__(self, options = None):
       self.state = { }
       self.output = []
       self.commentKeys = set()
       self.baseDirectory = ''
+      self.pause = options.PauseTime if options else 0.0
    # __init__()
    
    def ParseFile(self, InputSpecs):
@@ -315,7 +325,7 @@ class ProcessorClass:
            ( 'NTracks', ( 'ntracks', 'tracks' ) ),
            ):
             
-            if isinstance(labels, basestring): labels = ( labels, )
+            if isinstance(labels, str): labels = ( labels, )
             for label in labels:
                if key == label.lower(): break
             else: continue
@@ -385,27 +395,39 @@ class ProcessorClass:
       cmd.append(InputFile)
       return cmd
       
-   # OutputCurrent()
+   # OutputElement()
    
    
    def Output(self, OutputFile):
       items = self.output
       nItems = len(items)
       Padding = len(str(nItems))
+      PreviousAlbum = None
       for iItem, item in enumerate(items):
+         Album = item.get('Album', PreviousAlbum)
+         if Album != PreviousAlbum:
+            PreviousAlbum = Album
+            cmd = ( 'echo', "Tagging album: '{}'".format(Album), )
+            print(" ".join(BashQuoterClass.QuoteList(cmd)), file=OutputFile)
+         # if new album
          
          try:
             InputFile = item['InputFile']
          except KeyError:
             raise RuntimeError("No file specified for item %d!", iItem)
+         if (iItem > 0) and (self.pause > 0.0):
+            cmd = ( 'sleep', str(self.pause), )
+            print(" ".join(BashQuoterClass.QuoteList(cmd)), file=OutputFile)
+         # if
+         
          cmd = (
            'echo',
-           "[%0*d/%0*d] Processing '%s'" % (Padding, iItem+1, Padding, nItems, InputFile)
+           "[{0:0{2}d}/{1:0{2}d}] Processing '{3}'".format(iItem+1, nItems, Padding, InputFile)
          )
-         print >>OutputFile, " ".join(BashQuoterClass.QuoteList(cmd))
+         print(" ".join(BashQuoterClass.QuoteList(cmd)), file=OutputFile)
          
          cmd = self.OutputElement(item, iItem, nItems)
-         print >>OutputFile, " ".join(BashQuoterClass.QuoteList(cmd))
+         print(" ".join(BashQuoterClass.QuoteList(cmd)), file=OutputFile)
       # for
       cmd = [ 'echo', "Done." ]
       
@@ -420,7 +442,7 @@ class ProcessorClass:
 def Process(InputFile, OutputFile, options):
    """Processes the input file"""
    
-   Processor = ProcessorClass()
+   Processor = ProcessorClass(options)
    
    Processor.ParseFile(InputFile)
    
@@ -447,7 +469,10 @@ if __name__ == "__main__":
    parser.add_argument("--output", action="store", dest="OutputFile",
      help="output file [default: stdout]", default=None)
    parser.add_argument('--genres', action='store_true', dest='ListGenres',
-     help="List all supported genres (and their codes)")
+     help="List all supported genres")
+   parser.add_argument('--pause', action='store', dest='PauseTime', type=float,
+     help="waits for this number of seconds after each tagging [%(default)f]",
+     default=0.0)
    parser.add_argument('--version', action='version',
      version='%(prog)s v' + __version__)
    
@@ -472,7 +497,7 @@ if __name__ == "__main__":
    # for
    
    if OutputFile is not sys.stdout:
-      print "Output written in '%s'" % OutputFile.name
+      print("Output written in '{}'".format(OutputFile.name))
       OutputFile.close()
    # if
    sys.exit(0)
