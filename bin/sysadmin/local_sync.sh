@@ -5,17 +5,23 @@
 
 SCRIPTNAME="$(basename "$0")"
 
-REMOTESETUPSCRIPT="bin/PortageFTPserver.sh"
-
+################################################################################
 : ${TARGET:="world"}
 : ${DEFAULTSERVER:="glamis.thebard.net"}
 
-declare -a Servers=( "glamis.thebard.net" "macosx.thebard.net" "malvolio.thebard.net" )
+declare -a Servers=( "glamis.thebard.net" "mac-131305.thebard.net" "malvolio.thebard.net" )
 
 MakeConf="/etc/portage/make.conf"
 
-Services=( 'rsyncd' 'pure-ftpd' )
+ServiceManager="$(which systemctl)"
+: ${ServiceManager:='/bin/systemctl'}
 
+Services=( )
+
+# REMOTESETUPSCRIPT="bin/PortageFTPserver.sh"
+REMOTESETUPSCRIPT=""
+
+################################################################################
 function STDERR() { echo "$*" >&2 ; } 
 
 function ERROR() { STDERR "ERROR: $*" ; }
@@ -51,29 +57,28 @@ function DUMPVARS() {
 		DUMPVAR "$VarName"
 	done
 }
+
+function EXEC() {
+	if isFlagSet FAKE ; then
+		STDERR "FAKE\$ $@"
+	else
+		DBG "CMD\$ $@"
+		"$@"
+	fi
+} # EXEC()
+
 function ExtractVariable() {
-	# doesn't work :-(
 	local SrcFile="$1"
 	local VarName="$2"
-	echo $( source "$SrcFile" ; echo "\${$VarName}" )
+	echo $( source "$SrcFile" ; declare -p "$VarName" )
 }
-
-function ExtractVariable2() {
-	local SrcFile="$1"
-	local VarName="$2"
-	ConfLine="$(grep "^${VarName}=" "$SrcFile" | tail -n 1)"
-	Content="${ConfLine#${VarName}=\"}"
-	Content="${Content%\"*}"
-	echo "$Content"
-}
-
 
 function AllServices() {
 	for Service in "${Services[@]}" ; do
 		if [[ "$1" == "Start" ]]; then
-			ssh "$SERVER" /sbin/rc-service "$Service" status || ssh "$SERVER" /sbin/rc-service "$Service" start
+			ssh "$SERVER" "$ServiceManager" -q is-active "$Service" || ssh "$SERVER" "$ServiceManager" start "$Service"
 		else
-			ssh "$SERVER" /sbin/rc-service "$Service" "$@"
+			ssh "$SERVER" "$ServiceManager" "$@" "$Service"
 		fi
 		res=$?
 		[[ $res != 0 ]] && return $res
@@ -82,6 +87,7 @@ function AllServices() {
 }
 
 function RemoteSetup() {
+	[[ -n "$REMOTESETUPSCRIPT" ]] || return 0
 	ssh "$SERVER" "$REMOTESETUPSCRIPT" "$@"
 } # RemoteSetup()
 
@@ -107,7 +113,7 @@ function areSameServer() {
 
 function ServerExists() {
 	local Server="$1"
-	ping -c 1 -w 2 -q "$Server" >& /dev/null
+	EXEC ping -c 1 -w 2 -q "$Server" > /dev/null
 } # ServerExists()
 
 function DiscoverServer() {
@@ -115,11 +121,13 @@ function DiscoverServer() {
 	local Server
 	for Server in "${Servers[@]}" ; do
 		[[ -n "$Server" ]] || continue
+		DBG "Testing server: '${Server}'" 
 		# this server?
 		areSameServer "$HOSTNAME" "$Server" && continue
 		# does the server exist?
 		ServerExists "$Server" || continue
 		# good enough
+		DBG " => pingable"
 		echo "$Server"
 		return 0
 	done
@@ -225,15 +233,12 @@ PortageRsyncKey="gentoo-portage"
 MirrorRsyncKey="gentoo-distfiles"
 
 MySync="rsync://${SERVER}/${PortageRsyncKey}"
-MyRep="ftp://${SERVER}/repository/gentoo-portage"
+MyRep="rsync://${SERVER}/repository/gentoo-portage"
 
 # get the current settings
-
-GENTOO_MIRRORS="${MyRep} $(ExtractVariable2 "$MakeConf" "GENTOO_MIRRORS")"
+eval $(ExtractVariable "$MakeConf" 'GENTOO_MIRRORS')
+GENTOO_MIRRORS="${MyRep} ${GENTOO_MIRRORS}"
 echo "Portage will use as additional mirror: '${MyRep}'"
-
-# source ${MakeConf}
-# GENTOO_MIRRORS="${MyRep} ${GENTOO_MIRRORS}"
 
 SYNC="$MySync"
 
@@ -242,12 +247,8 @@ DUMPVARS GENTOO_MIRRORS SYNC
 # # first, make sure all the required services are up
 # AllServices Start
 RemoteSetup Start
-res=$?
+LASTFATAL "unable to setup server '${SERVER}'."
 
-if [[ $res != 0 ]]; then
-	echo "Error (${res}): unable to reach the server '${SERVER}'." >&2
-#	exit $res
-fi
 #
 # MountRemoteDirs
 
