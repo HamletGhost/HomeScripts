@@ -8,7 +8,7 @@ declare -i NKernels=0
 declare -i nErrors=0
 
 for Dir in "$@" ; do
-	KernelDir="$Dir"
+	KernelDir="${Dir%:}"
 	[[ -d "$KernelDir" ]] || KernelDir="/usr/src/${KernelDir}"
 	if [[ ! -d "$KernelDir" ]]; then
 		echo "'${Dir}' is not a directory!" >&2
