@@ -2183,3 +2183,25 @@ function datetag() {
 
 } # datetag()
 export -f datetag
+
+################################################################################
+function RunFunctionTestSuite() {
+  # run the tests in this module
+  local -ar Tests=( TestRemoveFromList_indirect TestFindInList TestFindLastInList TestIsInList TestInsertPath )
+  local -i nErrors=0 nTests=0
+  local Test
+  for Test in "${Tests[@]}" ; do
+    let ++nTests
+    if ! "$Test" ; then
+      ERROR "Test '${Test}' failed."
+      let ++nErrors
+    fi
+  done
+  if [[ $nErrors -gt 0 ]]; then
+    ERROR "${nErrors} out of ${nTests} tests failed."
+  fi
+  return $nErrors
+} # RunFunctionTestSuite()
+
+
+################################################################################
