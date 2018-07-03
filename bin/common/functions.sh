@@ -22,6 +22,520 @@ if [[ -z "$FUNCTIONS_SH_LOADED" ]]; then
 	
 fi # if functions were not loaded
 
+###
+### Basic utilities on variables
+###
+function isFunctionSet() {
+	local FunctionName="$1"
+	declare -F "$FunctionName" >& /dev/null
+} # isFunctionSet()
+
+function isNameSet() {
+	local Name="$1"
+	declare -p "$Name" >& /dev/null
+} # isNameSet()
+
+function isVariableSet() {
+	local Name="$1"
+	isNameSet "$Name" && ! isFunctionSet "$Name"
+} # isVariableSet()
+
+function isFlagSet() {
+	local VarName="$1"
+	[[ -n "${!VarName//0}" ]]
+} # isFlagSet()
+
+function isFlagUnset() {
+	local VarName="$1"
+	[[ -z "${!VarName//0}" ]]
+} # isFlagUnset()
+
+###
+###  basic utilities on lists
+###
+function isSameList() {
+  #
+  # isSameList NItems FirstItems... SecondItems...
+  # 
+  # Returns success if the second list have the same cardinality (`NItems`)
+  # as the first one, and if their elements match their values.
+  #
+  local -i NFirst="$1"
+  shift
+  
+  local -i n="$NFirst"
+  [[ $# -eq $((2 * n)) ]] || return 1
+  
+  local -a First
+  while [[ $NFirst -gt 0 ]]; do
+    First+=( "$1" )
+    let --NFirst
+    shift
+  done
+  local -a Second=( "$@" )
+  for (( i = 0 ; i < n ; ++i )); do
+    [[ "${First[i]}" == "${Second[i]}" ]] || return 1
+    
+  done
+  return 0
+} # isSameList()
+
+
+function FindInList() {
+  #
+  # FindInList Key [Item...]
+  #
+  # Prints the index of the first value Key in the list of Item elements,
+  # and return non-zero exit code if not present
+  #
+  
+  local Key="$1"
+  shift
+  local -i i=0
+  local Item
+  for Item in "$@" ; do
+    [[ "$Key" == "$Item" ]] && echo "$i" && return 0
+    let ++i
+  done
+  return 1
+} # FindInList()
+
+
+function TestFindInList() {
+  
+  declare -a List=( 'a' 'b' 'c' 'b' 'd' 'd' '' 'e' )
+  declare -a cmd
+  local res exp ret
+  local -i nErrors=0
+  
+  cmd=( FindInList 'a' "${List[@]}" )
+  exp=0
+  [[ -n "$exp" ]]
+  expRet=$?
+  res="$( "${cmd[@]}" )"
+  ret=$?
+  if [[ "$res" != "$exp" ]] || [[ "$ret" != "$expRet" ]]; then
+    let ++nErrors
+    ERROR "\`${cmd[@]}\` => '${res}' [return: ${ret}] ('${exp}' and ${expRet} expected)"
+  fi
+  
+  cmd=( FindInList 'b' "${List[@]}" )
+  exp=1
+  [[ -n "$exp" ]]
+  expRet=$?
+  res="$( "${cmd[@]}" )"
+  ret=$?
+  if [[ "$res" != "$exp" ]] || [[ "$ret" != "$expRet" ]]; then
+    let ++nErrors
+    ERROR "\`${cmd[@]}\` => '${res}' [return: ${ret}] ('${exp}' and ${expRet} expected)"
+  fi
+  
+  cmd=( FindInList 'c' "${List[@]}" )
+  exp=2
+  [[ -n "$exp" ]]
+  expRet=$?
+  res="$( "${cmd[@]}" )"
+  ret=$?
+  if [[ "$res" != "$exp" ]] || [[ "$ret" != "$expRet" ]]; then
+    let ++nErrors
+    ERROR "\`${cmd[@]}\` => '${res}' [return: ${ret}] ('${exp}' and ${expRet} expected)"
+  fi
+  
+  cmd=( FindInList 'd' "${List[@]}" )
+  exp=4
+  [[ -n "$exp" ]]
+  expRet=$?
+  res="$( "${cmd[@]}" )"
+  ret=$?
+  if [[ "$res" != "$exp" ]] || [[ "$ret" != "$expRet" ]]; then
+    let ++nErrors
+    ERROR "\`${cmd[@]}\` => '${res}' [return: ${ret}] ('${exp}' and ${expRet} expected)"
+  fi
+  
+  cmd=( FindInList 'e' "${List[@]}" )
+  exp=7
+  [[ -n "$exp" ]]
+  expRet=$?
+  res="$( "${cmd[@]}" )"
+  ret=$?
+  if [[ "$res" != "$exp" ]] || [[ "$ret" != "$expRet" ]]; then
+    let ++nErrors
+    ERROR "\`${cmd[@]}\` => '${res}' [return: ${ret}] ('${exp}' and ${expRet} expected)"
+  fi
+  
+  cmd=( FindInList 'f' "${List[@]}" )
+  exp=""
+  [[ -n "$exp" ]]
+  expRet=$?
+  res="$( "${cmd[@]}" )"
+  ret=$?
+  if [[ "$res" != "$exp" ]] || [[ "$ret" != "$expRet" ]]; then
+    let ++nErrors
+    ERROR "\`${cmd[@]}\` => '${res}' [return: ${ret}] ('${exp}' and ${expRet} expected)"
+  fi
+  
+  cmd=( FindInList '' "${List[@]}" )
+  exp=6
+  [[ -n "$exp" ]]
+  expRet=$?
+  res="$( "${cmd[@]}" )"
+  ret=$?
+  if [[ "$res" != "$exp" ]] || [[ "$ret" != "$expRet" ]]; then
+    let ++nErrors
+    ERROR "\`${cmd[@]}\` => '${res}' [return: ${ret}] ('${exp}' and ${expRet} expected)"
+  fi
+  
+  
+  #
+  # all tests done
+  #
+  if [[ $nErrors -gt 0 ]]; then
+    declare -p List
+    ERROR "${FUNCNAME}: ${nErrors} tests failed."
+  fi
+  
+  return $nErrors
+} # TestFindInList()
+
+
+function FindLastInList() {
+  #
+  # FindLastInList Key [Item...]
+  #
+  # Prints the index of the last value Key in the list of Item elements,
+  # and return non-zero exit code if not present
+  #
+  
+  local Key="$1"
+  shift
+  local -i i=$#
+  local Item
+  while [[ $i -gt 0 ]]; do
+    Item="${!i}" # remember that positional parameter indices start from 1
+    let --i
+    [[ "$Key" == "$Item" ]] && echo "$i" && return 0
+  done
+  return 1
+} # FindLastInList()
+
+
+function TestFindLastInList() {
+  
+  declare -a List=( 'a' 'b' 'c' 'b' 'd' 'd' '' 'e' )
+  declare -a cmd
+  local res exp ret
+  local -i nErrors=0
+  
+  cmd=( FindLastInList 'a' "${List[@]}" )
+  exp=0
+  [[ -n "$exp" ]]
+  expRet=$?
+  res="$( "${cmd[@]}" )"
+  ret=$?
+  if [[ "$res" != "$exp" ]] || [[ "$ret" != "$expRet" ]]; then
+    let ++nErrors
+    ERROR "\`${cmd[@]}\` => '${res}' [return: ${ret}] ('${exp}' and ${expRet} expected)"
+  fi
+  
+  cmd=( FindLastInList 'b' "${List[@]}" )
+  exp=3
+  [[ -n "$exp" ]]
+  expRet=$?
+  res="$( "${cmd[@]}" )"
+  ret=$?
+  if [[ "$res" != "$exp" ]] || [[ "$ret" != "$expRet" ]]; then
+    let ++nErrors
+    ERROR "\`${cmd[@]}\` => '${res}' [return: ${ret}] ('${exp}' and ${expRet} expected)"
+  fi
+  
+  cmd=( FindLastInList 'c' "${List[@]}" )
+  exp=2
+  [[ -n "$exp" ]]
+  expRet=$?
+  res="$( "${cmd[@]}" )"
+  ret=$?
+  if [[ "$res" != "$exp" ]] || [[ "$ret" != "$expRet" ]]; then
+    let ++nErrors
+    ERROR "\`${cmd[@]}\` => '${res}' [return: ${ret}] ('${exp}' and ${expRet} expected)"
+  fi
+  
+  cmd=( FindLastInList 'd' "${List[@]}" )
+  exp=5
+  [[ -n "$exp" ]]
+  expRet=$?
+  res="$( "${cmd[@]}" )"
+  ret=$?
+  if [[ "$res" != "$exp" ]] || [[ "$ret" != "$expRet" ]]; then
+    let ++nErrors
+    ERROR "\`${cmd[@]}\` => '${res}' [return: ${ret}] ('${exp}' and ${expRet} expected)"
+  fi
+  
+  cmd=( FindLastInList 'e' "${List[@]}" )
+  exp=7
+  [[ -n "$exp" ]]
+  expRet=$?
+  res="$( "${cmd[@]}" )"
+  ret=$?
+  if [[ "$res" != "$exp" ]] || [[ "$ret" != "$expRet" ]]; then
+    let ++nErrors
+    ERROR "\`${cmd[@]}\` => '${res}' [return: ${ret}] ('${exp}' and ${expRet} expected)"
+  fi
+  
+  cmd=( FindLastInList 'f' "${List[@]}" )
+  exp=""
+  [[ -n "$exp" ]]
+  expRet=$?
+  res="$( "${cmd[@]}" )"
+  ret=$?
+  if [[ "$res" != "$exp" ]] || [[ "$ret" != "$expRet" ]]; then
+    let ++nErrors
+    ERROR "\`${cmd[@]}\` => '${res}' [return: ${ret}] ('${exp}' and ${expRet} expected)"
+  fi
+  
+  cmd=( FindLastInList '' "${List[@]}" )
+  exp=6
+  [[ -n "$exp" ]]
+  expRet=$?
+  res="$( "${cmd[@]}" )"
+  ret=$?
+  if [[ "$res" != "$exp" ]] || [[ "$ret" != "$expRet" ]]; then
+    let ++nErrors
+    ERROR "\`${cmd[@]}\` => '${res}' [return: ${ret}] ('${exp}' and ${expRet} expected)"
+  fi
+  
+  
+  #
+  # all tests done
+  #
+  if [[ $nErrors -gt 0 ]]; then
+    declare -p List
+    ERROR "${FUNCNAME}: ${nErrors} tests failed."
+  fi
+  
+  return $nErrors
+} # TestFindLastInList()
+
+
+function isInList() {
+  #
+  # isInList Key [Item...]
+  #
+  # Returns 0 exit code if a value Key is in the list of Item elements, non-zero
+  # otherwise.
+  #
+  FindInList "$@" > /dev/null
+} # isInList()
+
+function TestIsInList() {
+  
+  declare -a List=( 'a' 'b' 'c' 'b' 'd' 'd' '' 'e' )
+  declare -a cmd
+  local res exp
+  
+  cmd=( isInList 'a' "${List[@]}" )
+  exp=0
+  "${cmd[@]}"
+  res=$?
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "\`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( isInList 'b' "${List[@]}" )
+  exp=0
+  "${cmd[@]}"
+  res=$?
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "\`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( isInList 'c' "${List[@]}" )
+  exp=0
+  "${cmd[@]}"
+  res=$?
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "\`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( isInList 'd' "${List[@]}" )
+  exp=0
+  "${cmd[@]}"
+  res=$?
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "\`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( isInList 'e' "${List[@]}" )
+  exp=0
+  "${cmd[@]}"
+  res=$?
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "\`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( isInList 'f' "${List[@]}" )
+  exp=1
+  "${cmd[@]}"
+  res=$?
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "\`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( isInList '' "${List[@]}" )
+  exp=0
+  "${cmd[@]}"
+  res=$?
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "\`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  
+  #
+  # all tests done
+  #
+  if [[ $nErrors -gt 0 ]]; then
+    ERROR "${FUNCNAME}: ${nErrors} tests failed."
+  fi
+  
+  return $nErrors
+} # TestIsInList()
+
+
+function RemoveFromList_indirect() {
+  # Removes the specified elements from a list:
+  # 
+  # ResCmd="$(RemoveFromList_indirect [options] DestList NKeys Keys... [Items...])"
+  # eval "$ResCmd"
+  # 
+  # where `DestList` is the name of the variable where the result should be
+  # stored, `NItems` is the number of items in the original list and `Items` are
+  # their values. The command `RemoveFromList_indirect` returns a declare-like
+  # declaration that, when evaluated, initializes the variable DestList to the
+  # new list value
+  #
+  
+  local Option LocalRes=0
+  OPTIND=1
+  while getopts "lg-" Option ; do
+    case "$Option" in
+      ( 'l' ) LocalRes=1 ;;
+      ( 'g' ) LocalRes=0 ;;
+      ( '-' ) break ;;
+      ( * )
+        CRITICAL "$OPTERR" "${FUNCNAME}: option '${OPTARG}' not supported."
+        return
+        ;;
+    esac
+  done
+  shift $((OPTIND - 1))
+  
+  local DestList="$1"
+  local -i NKeys="$2"
+  shift 2
+  local -a Keys
+  local -i i
+  for (( i = 0 ; i < $NKeys ; ++i )); do
+    Keys+=( "$1" )
+    shift
+  done
+  local -a SourceList
+  while [[ $# -gt 0 ]]; do
+    SourceList+=( "$1" )
+    shift
+  done
+  
+  # prepare the local output
+  local -a res=( )
+  local Item
+  for Item in "${SourceList[@]}" ; do
+    isInList "$Item" "${Keys[@]}" || res+=( "$Item" )
+  done
+  
+  local resDecl="$(declare -p res)"
+  resDecl="${DestList}=${resDecl#*=}"
+  if isFlagSet LocalRes ; then
+    echo "local -a ${resDecl}"
+  else
+    echo "declare -a ${resDecl}"
+  fi
+  
+} # RemoveFromList_indirect()
+
+
+function TestRemoveFromList_indirect() {
+  
+  declare -a List=( 'a' 'b' 'c' 'b' 'd' 'd' '' 'e' )
+  declare -a cmd
+  local ResCmd
+  local -a ResList
+  local res exp ret
+  local -i nErrors=0
+  
+  cmd=( RemoveFromList_indirect -l ResList 1 'a' "${List[@]}" )
+  exp=( 'b' 'c' 'b' 'd' 'd' '' 'e' )
+  local ResCmd="$( "${cmd[@]}" )"
+  eval "$ResCmd"
+  if ! isSameList "${#exp[@]}" "${exp[@]}" "${ResList[@]}" ; then
+    let ++nErrors
+    ERROR "\`${cmd[@]}\` => { $(declare -p ResList) }, cmd='${ResCmd}' ({ $( declare -p exp ) } expected)"
+  fi
+  
+  cmd=( RemoveFromList_indirect -l ResList 1 'b' "${List[@]}" )
+  exp=( 'a' 'c' 'd' 'd' '' 'e' )
+  local ResCmd="$( "${cmd[@]}" )"
+  eval "$ResCmd"
+  if ! isSameList "${#exp[@]}" "${exp[@]}" "${ResList[@]}" ; then
+    let ++nErrors
+    ERROR "\`${cmd[@]}\` => { $(declare -p ResList) }, cmd='${ResCmd}' ({ $( declare -p exp ) } expected)"
+  fi
+  
+  cmd=( RemoveFromList_indirect -l ResList 1 'c' "${List[@]}" )
+  exp=( 'a' 'b' 'b' 'd' 'd' '' 'e' )
+  local ResCmd="$( "${cmd[@]}" )"
+  eval "$ResCmd"
+  if ! isSameList "${#exp[@]}" "${exp[@]}" "${ResList[@]}" ; then
+    let ++nErrors
+    ERROR "\`${cmd[@]}\` => { $(declare -p ResList) }, cmd='${ResCmd}' ({ $( declare -p exp ) } expected)"
+  fi
+  
+  cmd=( RemoveFromList_indirect -l ResList 1 'd' "${List[@]}" )
+  exp=( 'a' 'b' 'c' 'b' '' 'e' )
+  local ResCmd="$( "${cmd[@]}" )"
+  eval "$ResCmd"
+  if ! isSameList "${#exp[@]}" "${exp[@]}" "${ResList[@]}" ; then
+    let ++nErrors
+    ERROR "\`${cmd[@]}\` => { $(declare -p ResList) }, cmd='${ResCmd}' ({ $( declare -p exp ) } expected)"
+  fi
+  
+  cmd=( RemoveFromList_indirect -l ResList 1 'e' "${List[@]}" )
+  exp=( 'a' 'b' 'c' 'b' 'd' 'd' '' )
+  local ResCmd="$( "${cmd[@]}" )"
+  eval "$ResCmd"
+  if ! isSameList "${#exp[@]}" "${exp[@]}" "${ResList[@]}" ; then
+    let ++nErrors
+    ERROR "\`${cmd[@]}\` => { $(declare -p ResList) }, cmd='${ResCmd}' ({ $( declare -p exp ) } expected)"
+  fi
+  
+  cmd=( RemoveFromList_indirect -l ResList 1 'f' "${List[@]}" )
+  exp=( 'a' 'b' 'c' 'b' 'd' 'd' '' 'e' )
+  local ResCmd="$( "${cmd[@]}" )"
+  eval "$ResCmd"
+  if ! isSameList "${#exp[@]}" "${exp[@]}" "${ResList[@]}" ; then
+    let ++nErrors
+    ERROR "\`${cmd[@]}\` => { $(declare -p ResList) }, cmd='${ResCmd}' ({ $( declare -p exp ) } expected)"
+  fi
+  
+  cmd=( RemoveFromList_indirect -l ResList 1 '' "${List[@]}" )
+  exp=( 'a' 'b' 'c' 'b' 'd' 'd' 'e' )
+  local ResCmd="$( "${cmd[@]}" )"
+  eval "$ResCmd"
+  if ! isSameList "${#exp[@]}" "${exp[@]}" "${ResList[@]}" ; then
+    let ++nErrors
+    ERROR "\`${cmd[@]}\` => { $(declare -p ResList) }, cmd='${ResCmd}' ({ $( declare -p exp ) } expected)"
+  fi
+  
+  #
+  # all tests done
+  #
+  if [[ $nErrors -gt 0 ]]; then
+    declare -p List
+    ERROR "${FUNCNAME}: ${nErrors} tests failed."
+  fi
+  
+  return $nErrors
+  
+  
+} # TestRemoveFromList_indirect()
+
+
+###
+###  messages
+###
 
 # functions are always redefined
 function STDERR() {
@@ -119,6 +633,9 @@ function PrintBashCallStack() {
 } # PrintBashCallStack()
 
 
+###
+### path utilities
+###
 function AppendSlash() {
 	local DirName="$1"
 	if [[ -n "$DirName" ]]; then
@@ -163,6 +680,9 @@ function MakeAbsolutePath() {
 } # MakeAbsolutePath()
 
 
+###
+### path list utilities
+###
 function InsertPath() {
 	#
 	# See "DoHelp" section in the code for usage directions.
@@ -480,6 +1000,9 @@ function SetColors() {
 } # SetColors()
 
 
+###
+###  unsorted
+###
 function ReadParam() {
 	# ReadParam Options nFirstParameter Parameters
 	# reads a parameter PARAM in the form -oPARAM or -o PARAM or --output=PARAM
