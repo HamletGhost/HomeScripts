@@ -28,16 +28,24 @@ function STDERR() {
 	echo -e "$*" >&2
 } # STDERR()
 
+# functions are always redefined
+function STDERRwithDebug() {
+  local msg
+  isDebugging && msg+="${FUNCNAME[1]}@${BASH_LINENO[1]}| "
+  msg+="$*"
+  echo -e "$msg" >&2
+} # STDERR()
+
 function INFO() {
-	STDERR "${InfoColor}$*${ResetColor}"
+	STDERRwithDebug "${InfoColor}$*${ResetColor}"
 } # INFO()
 
 function WARN() {
-	STDERR "${WarnColor}Warning: $*${ResetColor}"
+	STDERRwithDebug "${WarnColor}Warning: $*${ResetColor}"
 } # WARN()
 
 function ERROR() {
-	STDERR "${ErrorColor}Error: $*${ResetColor}"
+	STDERRwithDebug "${ErrorColor}Error: $*${ResetColor}"
 } # ERROR()
 
 function CRITICAL() {
@@ -50,7 +58,7 @@ function CRITICAL() {
 	# 
 	local Code="$1"
 	shift
-	STDERR "${FatalColor}Fatal error (${Code}): $*${ResetColor}"
+	STDERRwithDebug "${FatalColor}Fatal error (${Code}): $*${ResetColor}"
 	return $Code
 } # CRITICAL()
 
@@ -64,37 +72,15 @@ function LASTFATAL() {
 	[[ "$Code" != 0 ]] && FATAL $Code $*
 } # LASTFATAL()
 
-function isFunctionSet() {
-	local FunctionName="$1"
-	declare -F "$FunctionName" >& /dev/null
-} # isFunctionSet()
-
-function isNameSet() {
-	local Name="$1"
-	declare -p "$Name" >& /dev/null
-} # isNameSet()
-
-function isVariableSet() {
-	local Name="$1"
-	isNameSet "$Name" && ! isFunctionSet "$Name"
-} # isVariableSet()
-
-function isFlagSet() {
-	local VarName="$1"
-	[[ -n "${!VarName//0}" ]]
-} # isFlagSet()
-
-function isFlagUnset() {
-	local VarName="$1"
-	[[ -z "${!VarName//0}" ]]
-} # isFlagUnset()
-
+###
+###  debugging
+###
 function isDebugging() {
 	isFlagSet DEBUG
 }
 
 function DBG() {
-	isDebugging && STDERR "${DebugColor}DBG| $*${ResetColor}"
+	isDebugging && STDERRwithDebug "${DebugColor}DBG| $*${ResetColor}"
 } # DBG()
 
 function DBGN() {
