@@ -687,10 +687,13 @@ function InsertPath() {
 	#
 	# See "DoHelp" section in the code for usage directions.
 	#
+	DBG "${FUNCNAME} $*"
+	
 	local Option Separator=':' Prepend=0 AllowDuplicates=1 Move=0 DoHelp=0
-	local -a Checks
+	local -a Checks AfterItems BeforeItems
+	local OldOPTIND="$OPTIND"
 	OPTIND=1
-	while getopts "ed1Dmaps:h-" Option ; do
+	while getopts ":ed1Dmaps:A:B:h-" Option ; do
 		case "$Option" in
 			( 'e' | 'd' ) Checks=( "${Checks[@]}" "-${Option}" ) ;;
 			( '1' ) AllowDuplicates=0 ;;
@@ -700,10 +703,25 @@ function InsertPath() {
 			( 'p' ) Prepend=1 ;;
 			( 's' ) Separator="$OPTARG" ;;
 			( 'h' ) DoHelp=1 ;;
+			( 'A' ) AfterItems+=( "$OPTARG" ) ;;
+			( 'B' ) BeforeItems+=( "$OPTARG" ) ;;
 			( '-' ) break ;;
+			( '?' ) # this is getopts quietly telling us the option is invalid
+				if [[ "$OPTARG" == '?' ]]; then
+					DoHelp=1
+					continue
+				fi
+				CRITICAL "$OPTERR" "${FUNCNAME}: option '${OPTARG}' not supported."
+				;;
+			#	;& # this would be bash 4 syntax
+			( * )
+				CRITICAL "$OPTERR" "${FUNCNAME}: option '${OPTARG}' not supported."
+				return
+				;;
 		esac
 	done
 	shift $((OPTIND - 1))
+	OPTIND="$OldOPTIND"
 	
 	local VarName="$1"
 	shift
@@ -718,16 +736,18 @@ function InsertPath() {
 			
 			Options:
 			-s SEP [':']
-		      specify the separation string (default: ':')
+			    specify the separation string (default: ':')
 			-D
 			    allow for duplicate items (default)
-			-1 (number!)
-			    don't allow for duplicate items (existing and added): if an element
+			-1 (the number "one"!)
+			    do not allow for duplicate items (existing and added): if an element
 			    is already present, it is not added again
 			-m
-			    don't allow for duplicate items (existing and added): if the Path is
-			    already present, it is moved to the beginning (prepend mode) or end
-			    (append mode)
+			    ("move") do not add paths already present; when duplicates are allowed
+			    (\`-D\`), if the Path is already present the list is left untouched;
+			    if duplicates are not allowed (\`-1\`), if the Path is already present
+			    it is moved to the beginning (prepend mode) or end (append mode),
+			    and all other instances of Path are removed
 			-a
 			    append (default)
 			-p
@@ -736,7 +756,10 @@ function InsertPath() {
 			    add a Path only if it exists
 			-d
 			    add a Path only if it is an existing directory
-			-h
+			-A afterPath
+			    the new paths are added not before than the specified afterPath;
+			    only used when prepending (\`-p\`); can be specified multiple times
+			-h , -?
 			    print this help
 			
 		EOH
@@ -744,36 +767,85 @@ function InsertPath() {
 	fi
 	
 	local -a KnownItems WrittenItems
+	local -a ItemsToInsert=( "$@" )
 	local OldIFS="$IFS"
 	IFS="$Separator"
 	read -a KnownItems <<< "${!VarName}"
 	IFS="$OldIFS"
+	local -ir nKnownItems="${#KnownItems[@]}"
 	
 	if isFlagSet Prepend ; then
 		
+		[[ "${#BeforeItems[@]}" -ne 0 ]] && CRITICAL "Prepending (\`-p\`) /before/ specific elements (\`-B\`) is not supported." && return 1
+		
 		local Check
+		local -i iKnownWritten=-1
+		
+		# if the new items need to be set after some known ones, take care of that
+		# first:
+		if [[ "${#AfterItems[@]}" -gt 0 ]]; then
+			
+			# find the last among the items in After
+			local -i HighestIndex="-1"
+			local AfterItem
+			local Index
+			for AfterItem in "${AfterItems[@]}" ; do
+				Index=$(FindLastInList "$AfterItem" "${KnownItems[@]}")
+				DBG "Highest index for item '${AfterItem}': ${Index:-none}"
+				[[ ${Index:- -1} -gt $HighestIndex ]] && HighestIndex="$Index"
+			done
+			
+			if [[ $HighestIndex -ge 0 ]]; then
+				# write all the items before the one found
+				local i
+				for (( i = 0 ; i <= $HighestIndex ; ++i )); do
+					local KnownItem="${KnownItems[i]}"
+					
+					if isFlagUnset AllowDuplicates ; then
+						if isFlagSet Move && isInList "$KnownItem" "$@" ; then
+							# the existing item we are going to write now
+							# is among the items to be added; since we were asked to move the
+							# items to the new position if already present, we skip the item
+							continue
+						fi
+						
+						# we do not allow duplicates at all: check we haven't written this yet
+						isInList "$KnownItem" "${WrittenItems[@]}" && continue
+					fi
+					
+					[[ "${#WrittenItems[@]}" == 0 ]] || printf '%s' "$Separator"
+					printf '%s' "$KnownItem"
+					WrittenItems=( "${WrittenItems[@]}" "$KnownItem" )
+				done
+				
+				# we have dealt with all the known items up to the "HighestIndex" one:
+				let iKnownWritten+=(HighestIndex + 1)
+				DBG "Elements up to #${iKnownWritten} (included) written as prolog."
+			fi
+		fi
+		
+		# reparse the elements to insert: if we are not asked to move them and they
+		# already exist, they should not be inserted; also, if we are asked to move
+		# and duplicates are allowed, the items should not be written as well.
+		if ( isFlagUnset Move && isFlagUnset AllowDuplicates ) || ( isFlagSet Move && isFlagSet AllowDuplicates ) ; then
+			local Item
+			for Item in "${ItemsToInsert[@]}" ; do
+				if isInList "$Item" "${KnownItems[@]}" ; then
+					local rmCmd="$(RemoveFromList_indirect ItemsToInsert 1 "$Item" "${ItemsToInsert[@]}")"
+					eval "$rmCmd"
+				fi
+			done
+		fi
 		
 		# first write the new items
-		for Item in "$@" ; do
-			
+		for Item in "${ItemsToInsert[@]}" ; do
 			for Check in "${Checks[@]}" ; do
 				test "$Check" "$Item" || continue 2
 			done
 			
 			if isFlagUnset AllowDuplicates ; then
-				local WrittenItem
-				for WrittenItem in "${WrittenItems[@]}" ; do
-					[[ "$Item" == "$WrittenItem" ]] && continue 2 # go to the next item
-				done
+				isInList "$Item" "${WrittenItems[@]}" && continue
 			fi
-			
-			local isKnown=0
-			local KnownItem
-			for KnownItem in "${KnownItems[@]}" ; do
-				[[ "$Item" == "$KnownItem" ]] && isKnown=1 && break
-			done
-			
-			isFlagSet isKnown && isFlagUnset Move && continue
 			
 			[[ "${#WrittenItems[@]}" == 0 ]] || printf '%s' "$Separator"
 			printf '%s' "$Item"
@@ -781,8 +853,10 @@ function InsertPath() {
 		done # items
 		local -i nAddedItems=${#WrittenItems[@]}
 		
-		# now write the items which were there already
-		for KnownItem in "${KnownItems[@]}" ; do
+		# now write the items which were there already and which have not been
+		# written already
+		while [[ $((++iKnownWritten)) -lt "$nKnownItems" ]]; do
+			KnownItem="${KnownItems[iKnownWritten]}"
 			
 			local -i nDupCheck=0
 			isFlagSet Move && nDupCheck=$nAddedItems
@@ -799,58 +873,608 @@ function InsertPath() {
 		done
 	else # append
 		
+		[[ "${#AfterItems[@]}" -ne 0 ]] && CRITICAL "Appending (\`-a\`) /after/ specific elements (\`-A\`) is not supported." && return 1
+		
+		# if the new items need to be set after some known ones, take care of that
+		# first:
+    local -i LowestIndex="$nKnownItems"
+		if [[ "${#BeforeItems[@]}" -gt 0 ]]; then
+			# find the last among the items in After
+			local BeforeItem
+			local Index
+			for BeforeItem in "${BeforeItems[@]}" ; do
+				Index=$(FindInList "$BeforeItem" "${KnownItems[@]}")
+				DBG "Lowest index for item '${BeforeItem}': ${Index:-none}"
+				[[ ${Index:-$nKnownItems} -lt $LowestIndex ]] && LowestIndex="$Index"
+			done
+			DBG "Selected insertion point before index #${LowestIndex}"
+		fi
+		
 		# first write the items which are there already
-		for KnownItem in "${KnownItems[@]}" ; do
+		local -i iKnown=0
+		while [[ $iKnown -lt $LowestIndex ]]; do
+			KnownItem="${KnownItems[iKnown++]}"
+			
 			if isFlagUnset AllowDuplicates ; then
-				local WrittenItem
-				for WrittenItem in "${WrittenItems[@]}" ; do
-					[[ "$WrittenItem" == "$KnownItem" ]] && continue 2
-				done
+				
+				# if we are asked to move the items and this item is requested to be
+				# appended, it is erased from this position if no duplicates are
+				# allowed, otherwise it is preserved
+				if isFlagSet Move && isFlagUnset AllowDuplicates; then
+					isInList "$KnownItem" "${ItemsToInsert[@]}" && continue
+				fi
+				
+				# in general, duplicates are not allowed
+				isInList "$KnownItem" "${WrittenItems[@]}" && continue
 			fi
 			
-			if isFlagSet Move ; then
-				# check if it will be written later
-				local Item
-				for Item in "$@" ; do
-					[[ "$Item" == "$KnownItem" ]] && continue 2
-				done
+			[[ "${#WrittenItems[@]}" == 0 ]] || printf '%s' "$Separator"
+			printf '%s' "$KnownItem"
+			WrittenItems+=( "$KnownItem" )
+		done
+		
+		# then the new ones
+		local Item
+		for Item in "${ItemsToInsert[@]}" ; do
+			for Check in "${Checks[@]}" ; do
+				test "$Check" "$Item" || continue 2
+			done
+			
+			if isFlagUnset AllowDuplicates ; then
+				isInList "$Item" "${WrittenItems[@]}" && continue
+			else
+				# if we are moving and accepting duplication, and the item is already
+				# somewhere there at the beginning,
+				# the whole thing is a no-op for this insertion item
+				DBG "Checking whether '${Item}' is in ${KnownItems[@]}"
+				isFlagSet Move && isInList "$Item" "${KnownItems[@]}" && continue
 			fi
+		#	( isFlagUnset AllowDuplicates || isFlagSet Move ) && isInList "$Item" "${WrittenItems[@]}" && continue
+			
+			[[ "${#WrittenItems[@]}" == 0 ]] || printf '%s' "$Separator"
+			printf '%s' "$Item"
+			WrittenItems=( "${WrittenItems[@]}" "$Item" )
+		done
+		
+		# if there are still items to be written, do it now
+		while [[ $iKnown -lt $nKnownItems ]]; do
+			# write all the items after the insertion point
+			local KnownItem="${KnownItems[iKnown++]}"
+			
+			# do not write duplicates if so requested
+			isFlagUnset AllowDuplicates && isInList "$KnownItem" "${WrittenItems[@]}" && continue
 			
 			[[ "${#WrittenItems[@]}" == 0 ]] || printf '%s' "$Separator"
 			printf '%s' "$KnownItem"
 			WrittenItems=( "${WrittenItems[@]}" "$KnownItem" )
 		done
 		
-		# then the new ones
-		local Item
-		for Item in "$@" ; do
-			for Check in "${Checks[@]}" ; do
-				test "$Check" "$Item" || continue 2
-			done
-			
-			if isFlagUnset AllowDuplicates ; then
-				local WrittenItem
-				for WrittenItem in "${WrittenItems[@]}" ; do
-					[[ "$WrittenItem" == "$Item" ]] && continue 2
-				done
-			fi
-			
-			if isFlagUnset Move ; then
-				local KnownItem
-				for KnownItem in "${KnownItems[@]}" ; do
-					[[ "$Item" == "$KnownItem" ]] && continue 2
-				done
-			fi
-			
-			[[ "${#WrittenItems[@]}" == 0 ]] || printf '%s' "$Separator"
-			printf '%s' "$Item"
-			WrittenItems=( "${WrittenItems[@]}" "$Item" )
-		done
 	fi # prepend/append
 	
 	printf "\n"
 	return 0
 } # InsertPath()
+
+
+function TestInsertPath() {
+  
+  local res exp
+  local -a cmd
+  local -i nErrors=0
+  local -r TestPath="1:2:3:2:4:4:5:6"
+  
+  ###
+  ### default duplication option (currently: allow duplicates)
+  ###
+  #
+  # insertions of a new element
+  #
+  cmd=( InsertPath TestPath '7' )
+  exp="1:2:3:2:4:4:5:6:7"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -a TestPath '7' )
+  exp="1:2:3:2:4:4:5:6:7"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p TestPath '7' )
+  exp="7:1:2:3:2:4:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  #
+  # insertions of a duplicate element
+  #
+  cmd=( InsertPath -a TestPath '2' )
+  exp="1:2:3:2:4:4:5:6:2"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p TestPath '2' )
+  exp="2:1:2:3:2:4:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  #
+  # insertions of a duplicate element (same as first one)
+  #
+  cmd=( InsertPath -a TestPath '1' )
+  exp="1:2:3:2:4:4:5:6:1"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p TestPath '1' )
+  exp="1:1:2:3:2:4:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  #
+  # insertions of a duplicate element (same as last one)
+  #
+  cmd=( InsertPath -a TestPath '6' )
+  exp="1:2:3:2:4:4:5:6:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p TestPath '6' )
+  exp="6:1:2:3:2:4:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  ###
+  ### allow duplicates ('-D')
+  ###
+  #
+  # insertions of a new element
+  #
+  cmd=( InsertPath -a -D TestPath '7' )
+  exp="1:2:3:2:4:4:5:6:7"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p -D TestPath '7' )
+  exp="7:1:2:3:2:4:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  #
+  # insertions of a duplicate element
+  #
+  cmd=( InsertPath -a -D TestPath '2' )
+  exp="1:2:3:2:4:4:5:6:2"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p -D TestPath '2' )
+  exp="2:1:2:3:2:4:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  #
+  # insertions of a duplicate element (same as first one)
+  #
+  cmd=( InsertPath -a -D TestPath '1' )
+  exp="1:2:3:2:4:4:5:6:1"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p -D TestPath '1' )
+  exp="1:1:2:3:2:4:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  #
+  # insertions of a duplicate element (same as last one)
+  #
+  cmd=( InsertPath -a -D TestPath '6' )
+  exp="1:2:3:2:4:4:5:6:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p -D TestPath '6' )
+  exp="6:1:2:3:2:4:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  ###
+  ### do not allow duplicates ('-1')
+  ###
+  #
+  # insertions of a new element
+  #
+  cmd=( InsertPath -a -1 TestPath '7' )
+  exp="1:2:3:4:5:6:7"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p -1 TestPath '7' )
+  exp="7:1:2:3:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  #
+  # insertions of a duplicate element
+  #
+  cmd=( InsertPath -a -1 TestPath '2' )
+  exp="1:2:3:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p -1 TestPath '2' )
+  exp="1:2:3:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  #
+  # insertions of a duplicate element (same as first one)
+  #
+  cmd=( InsertPath -a -1 TestPath '1' )
+  exp="1:2:3:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p -1 TestPath '1' )
+  exp="1:2:3:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  #
+  # insertions of a duplicate element (same as last one)
+  #
+  cmd=( InsertPath -a -1 TestPath '6' )
+  exp="1:2:3:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p -1 TestPath '6' )
+  exp="1:2:3:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  ###
+  ### move (allows duplicates, only acts if inserted key is not present) ('-m -D')
+  ###
+  #
+  # insertions of a new element
+  #
+  cmd=( InsertPath -a -m -D TestPath '7' )
+  exp="1:2:3:2:4:4:5:6:7"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p -m -D TestPath '7' )
+  exp="7:1:2:3:2:4:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  #
+  # insertions of a duplicate element
+  #
+  cmd=( InsertPath -a -m -D TestPath '2' )
+  exp="1:2:3:2:4:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p -m -D TestPath '2' )
+  exp="1:2:3:2:4:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  #
+  # insertions of a duplicate element (same as first one)
+  #
+  cmd=( InsertPath -a -m -D TestPath '1' )
+  exp="1:2:3:2:4:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p -m -D TestPath '1' )
+  exp="1:2:3:2:4:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  #
+  # insertions of a duplicate element (same as last one)
+  #
+  cmd=( InsertPath -a -m -D TestPath '6' )
+  exp="1:2:3:2:4:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p -m -D TestPath '6' )
+  exp="1:2:3:2:4:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  
+  ###
+  ### move (does not allow any duplicate) ('-m -1')
+  ###
+  #
+  # insertions of a new element
+  #
+  cmd=( InsertPath -a -m -1 TestPath '7' )
+  exp="1:2:3:4:5:6:7"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p -m -1 TestPath '7' )
+  exp="7:1:2:3:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  #
+  # insertions of a duplicate element
+  #
+  cmd=( InsertPath -a -m -1 TestPath '2' )
+  exp="1:3:4:5:6:2"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p -m -1 TestPath '2' )
+  exp="2:1:3:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  #
+  # insertions of a duplicate element (same as first one)
+  #
+  cmd=( InsertPath -a -m -1 TestPath '1' )
+  exp="2:3:4:5:6:1"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p -m -1 TestPath '1' )
+  exp="1:2:3:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  #
+  # insertions of a duplicate element (same as last one)
+  #
+  cmd=( InsertPath -a -m -1 TestPath '6' )
+  exp="1:2:3:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p -m -1 TestPath '6' )
+  exp="6:1:2:3:4:5"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  
+  ###
+  ### prepending after some values (`-A`)
+  ###
+  #
+  # insertions of a new element after two existing and a non-existing element
+  #
+  cmd=( InsertPath -p -A 1 -A 4 -A 8 TestPath '7' )
+  exp="1:2:3:2:4:4:7:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  #
+  # insertions of an existing element after two existing and a non-existing element
+  #
+  cmd=( InsertPath -p -A 1 -A 4 -A 8 TestPath '2' )
+  exp="1:2:3:2:4:4:2:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p -A 1 -A 4 -A 8 TestPath '6' )
+  exp="1:2:3:2:4:4:6:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  ###
+  ### prepending after some values (`-A`) when allowing duplicates (`-D`)
+  ###
+  #
+  # insertions of a new element after two existing and a non-existing element
+  #
+  cmd=( InsertPath -p -A 1 -A 4 -A 8 -D TestPath '7' )
+  exp="1:2:3:2:4:4:7:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  #
+  # insertions of an existing element after two existing and a non-existing element
+  #
+  cmd=( InsertPath -p -A 1 -A 4 -A 8 -D TestPath '2' )
+  exp="1:2:3:2:4:4:2:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p -A 1 -A 4 -A 8 -D TestPath '6' )
+  exp="1:2:3:2:4:4:6:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  ###
+  ### prepending after some values (`-A`) when not allowing duplicates (`-1`)
+  ###
+  #
+  # insertions of a new element after two existing and a non-existing element
+  #
+#  local -r TestPath="1:2:3:2:4:4:5:6"
+  
+  cmd=( InsertPath -p -A 1 -A 4 -A 8 -1 TestPath '7' )
+  exp="1:2:3:4:7:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  #
+  # insertions of an existing element after two existing and a non-existing element
+  #
+  cmd=( InsertPath -p -A 1 -A 4 -A 8 -1 TestPath '2' )
+  exp="1:2:3:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p -A 1 -A 4 -A 8 -1 TestPath '6' )
+  exp="1:2:3:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  ###
+  ### prepending after some values (`-A`) when moving (`-m`) and allowing duplicates (`-D`)
+  ###
+  #
+  # insertions of a new element after two existing and a non-existing element
+  #
+  cmd=( InsertPath -p -A 1 -A 4 -A 8 -m -D TestPath '7' )
+  exp="1:2:3:2:4:4:7:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  #
+  # insertions of an existing element after two existing and a non-existing element
+  #
+  cmd=( InsertPath -p -A 1 -A 4 -A 8 -m -D TestPath '2' )
+  exp="1:2:3:2:4:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p -A 1 -A 4 -A 8 -m -D TestPath '6' )
+  exp="1:2:3:2:4:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  ###
+  ### prepending after some values (`-A`) when moving (`-m`) and not allowing duplicates (`-1`)
+  ###
+  #
+  # insertions of a new element after two existing and a non-existing element
+  #
+  cmd=( InsertPath -p -A 1 -A 4 -A 8 -m -1 TestPath '7' )
+  exp="1:2:3:4:7:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  #
+  # insertions of an existing element after two existing and a non-existing element
+  #
+  cmd=( InsertPath -p -A 1 -A 4 -A 8 -m -1 TestPath '2' )
+  exp="1:3:4:2:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -p -A 1 -A 4 -A 8 -m -1 TestPath '6' )
+  exp="1:2:3:4:6:5"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  
+  ###
+  ### appending before some values (`-B`) when allowing duplicates (`-D`)
+  ###
+  #
+  # insertions of a new element before two existing and a non-existing element
+  #
+  cmd=( InsertPath -a -B 6 -B 4 -B 8 -D TestPath '7' )
+  exp="1:2:3:2:7:4:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  #
+  # insertions of an existing element after two existing and a non-existing element
+  #
+  cmd=( InsertPath -a -B 6 -B 4 -B 8 -D TestPath '2' )
+  exp="1:2:3:2:2:4:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -a -B 6 -B 4 -B 8 -D TestPath '5' )
+  exp="1:2:3:2:5:4:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  ###
+  ### appending before some values (`-B`) when not allowing duplicates (`-1`)
+  ###
+  #
+  # insertions of a new element before two existing and a non-existing element
+  #
+  cmd=( InsertPath -a -B 6 -B 4 -B 8 -1 TestPath '7' )
+  exp="1:2:3:7:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  #
+  # insertions of an existing element after two existing and a non-existing element
+  #
+  cmd=( InsertPath -a -B 6 -B 4 -B 8 -1 TestPath '2' )
+  exp="1:2:3:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -a -B 6 -B 4 -B 8 -1 TestPath '5' )
+  exp="1:2:3:5:4:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  ###
+  ### appending before some values (`-B`) when moving (`-m`) and allowing duplicates (`-D`)
+  ###
+  #
+  # insertions of a new element before two existing and a non-existing element
+  #
+  cmd=( InsertPath -a -B 6 -B 4 -B 8 -D -m TestPath '7' )
+  exp="1:2:3:2:7:4:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  #
+  # insertions of an existing element after two existing and a non-existing element
+  #
+  cmd=( InsertPath -a -B 6 -B 4 -B 8 -D -m TestPath '2' )
+  exp="1:2:3:2:4:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -a -B 6 -B 4 -B 8 -D -m TestPath '5' )
+  exp="1:2:3:2:4:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  ###
+  ### appending before some values (`-B`) when moving (`-m`) and not allowing duplicates (`-1`)
+  ###
+  #
+  # insertions of a new element before two existing and a non-existing element
+  #
+  cmd=( InsertPath -a -B 6 -B 4 -B 8 -1 -m TestPath '7' )
+  exp="1:2:3:7:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  #
+  # insertions of an existing element after two existing and a non-existing element
+  #
+  cmd=( InsertPath -a -B 6 -B 4 -B 8 -1 -m TestPath '2' )
+  exp="1:3:2:4:5:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  cmd=( InsertPath -a -B 6 -B 4 -B 8 -1 -m TestPath '5' )
+  exp="1:2:3:5:4:6"
+  res="$( "${cmd[@]}" )"
+  [[ "$res" != "$exp" ]] && let ++nErrors && ERROR "${FUNCNAME}@${LINENO} - \`${cmd[@]}\` => '${res}' ('${exp}' expected)"
+  
+  
+  #
+  # all tests done
+  #
+  if [[ $nErrors -gt 0 ]]; then
+    echo "$(declare -p TestPath)"
+    ERROR "${FUNCNAME}: ${nErrors} tests failed."
+  fi
+  
+  return $nErrors
+} # TestInsertPath()
 
 
 function AddToPath() {
@@ -863,12 +1487,26 @@ function AddToPath() {
 	#
 	local Option
 	OPTIND=1
-	while getopts "ed1Dmaps:-" Option ; do
+	# same option parsing as for `InsertPath()`, just to find the first positional
+	# argument:
+	while getopts ":ed1Dmaps:A:B:h-" Option ; do
 		[[ "$Option" == "-" ]] && break
 	done
 	
 	local VarName="${!OPTIND}"
-	eval "export ${VarName}=\"$(InsertPath "$@" )\""
+	# this is sad euristic to figure out if what we get from InsertPath is just help message:
+	local InsertPathStatements
+        InsertPathStatements="$(InsertPath "$@" )"
+	local res=$?
+	[[ $res != 0 ]] && return $res
+	[[ -n "$InsertPathStatements" ]] || return 0
+        local Command
+	read Command <<< "$InsertPathStatements"
+        if [[ -z "$Command" ]]; then
+		echo "$InsertPathStatements"
+	else
+		eval "export ${VarName}=\"${InsertPathStatements}\""
+	fi
 } # AddToPath()
 
 
