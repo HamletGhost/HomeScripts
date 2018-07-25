@@ -37,7 +37,7 @@ else
 		CandidateLogDir="${LogDir}${SubLogDir:+/${SubLogDir}}"
 		: ${CandidateLogDir:="."}
 		[[ -d "$CandidateLogDir" ]] || continue
-		LogFile="$(find "$CandidateLogDir" ${Depth:+-maxdepth "$Depth"} -type f -name "$LOGPATTERN" | xargs ls -drt 2> /dev/null | tail -n 1)"
+		LogFile="$(find -L "$CandidateLogDir" ${Depth:+-maxdepth "$Depth"} -type f -name "$LOGPATTERN" | xargs ls -drt 2> /dev/null | tail -n 1)"
 		[[ "$LogFile" == '.' ]] && LogFile="" && continue # if find finds nothing, ls will show "."
 		[[ -f "$LogFile" ]] && break
 	done
