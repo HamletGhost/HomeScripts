@@ -1152,14 +1152,14 @@ isFlagSet QUIET && VERBOSE=0
 case "$MODE" in
 	( 'help' )
 		if [[ "${#HelpTopics[*]}" == 0 ]]; then
-			help
+			help | less -F
 		else
 			for HelpTopic in "${HelpTopics[@]}" ; do
 				help_${HelpTopic}
 				LASTFATAL "Error while printing help on topic '${HelpTopic}'"
-			done
+			done | less -F
 		fi
-		exit 0
+		exit $?
 		;;
 	( 'version' )
 		RealName="$(basename "$(readlink -f "$0")")"

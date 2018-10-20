@@ -1,5 +1,6 @@
 Setup UPS_CVMFS || return
 
 echo "Setting UPS (LArSoft repository) up from CVMFS"
-source '/cvmfs/larsoft.opensciencegrid.org/products/setup'
+source '/cvmfs/fermilab.opensciencegrid.org/products/larsoft/setups'
+source '/cvmfs/larsoft.opensciencegrid.org/products/setups'
 
