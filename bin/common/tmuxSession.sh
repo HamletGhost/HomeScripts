@@ -1,18 +1,15 @@
 #!/bin/bash
 
 SessionCfgPath="$1"
-FallbackTMux="${HOME}/local/bin/tmux"
+FallbackTMux=( "${HOME}/local/bin/tmux" "$(which tmux 2> /dev/null)" )
 
 : ${tmuxConfigDir:="${HOME}/etc/tmux"}
 
 SessionName="${2:-"$(basename "${SessionCfgPath%.conf}")"}"
 
-tmux="${FallbackTMux}"
-# tmux="$(which tmux 2> /dev/null)"
-# if [[ $? != 0 ]]; then
-# 	echo "Using fallback tmux at '${FallbackTMux}'"
-# 	tmux="${FallbackTMux}"
-# fi
+for tmux in "${FallbackTMux[@]}" ; do
+	[[ -x "$tmux" ]] && break
+done
 
 if [[ ! -x "$tmux" ]] ; then
 	echo "Can't run TMux ('${tmux}')." >&2
