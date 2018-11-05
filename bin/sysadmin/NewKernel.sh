@@ -12,7 +12,7 @@
 : ${BOOTKERNELNAME:="vmlinuz"}
 : ${BOOTCONFIGNAME:="config"}
 : ${GRUBMENUNAME:="grub.cfg"}
-: ${GRUBMENU:="${BOOTDEV}/GRUB2/${GRUBMENUNAME}"}
+: ${GRUBMENU:="${BOOTDEV}/grub/${GRUBMENUNAME}"}
 : ${EDITOR:="vi"}
 : ${GREP:="grep"}
 : ${CP:="cp -fv"}
