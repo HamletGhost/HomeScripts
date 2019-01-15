@@ -1,3 +1,3 @@
 #!/bin/sh
 
-tailf /var/log/emerge-fetch.log
+tail -f /var/log/emerge-fetch.log

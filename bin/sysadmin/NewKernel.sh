@@ -12,7 +12,7 @@
 : ${BOOTKERNELNAME:="vmlinuz"}
 : ${BOOTCONFIGNAME:="config"}
 : ${GRUBMENUNAME:="grub.cfg"}
-: ${GRUBMENU:="${BOOTDEV}/GRUB2/${GRUBMENUNAME}"}
+: ${GRUBMENU:="${BOOTDEV}/grub/${GRUBMENUNAME}"}
 : ${EDITOR:="vi"}
 : ${GREP:="grep"}
 : ${CP:="cp -fv"}
@@ -357,7 +357,7 @@ if DoAction BOOTLOADER ; then
 	else
 		echo "Running automatic GRUB configuration update..."
 		NewGrubMenu="${GRUBMENU}-${UNAMER}-${DATETAG}"
-		grub2-mkconfig -o "$NewGrubMenu"
+		grub-mkconfig -o "$NewGrubMenu"
 		res=$?
 		if [[ $res == 0 ]]; then
 			if [[ -r "$GRUBMENU" ]]; then
