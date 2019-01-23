@@ -76,9 +76,6 @@ function Setup() {
 	
 	local Package="$1"
 	shift
-	if [[ $# -gt 1 ]]; then
-		echo "ERROR (non-fatal): extra arguments in Setup call ($@)" >&2
-	fi
 
 	local SetupScript=''
 	local CandidateScript
@@ -112,7 +109,6 @@ function Setup() {
 	if [[ -r "$SetupScript" ]]; then
 		local CWD="$(pwd)"
 		cd "$SetupDir"
-		shift
 		local ReturnCode
 		local VERBOSITY_LEVEL_SETUP="$QuietLevel"
 		export VERBOSITY_LEVEL_SETUP
