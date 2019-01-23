@@ -5,9 +5,11 @@ function ConfigureProgramDir() {
 	OPTIND=1
 	local Option
 	local PriorityOpt='-a' # append
-	while getopts 'ap' Option ; do
+	local -i Quiet=0
+	while getopts 'apq' Option ; do
 		case "$Option" in
-			( 'p' | 'a' ) PriorityOpt="-${Option}" ;; # prepend
+			( 'p' | 'a' ) PriorityOpt="-${Option}" ;; # prepend or append
+			( 'q' ) Quiet=1 ;;
 			( * ) ;;
 		esac
 	done
@@ -15,7 +17,7 @@ function ConfigureProgramDir() {
 	local VarName="$1"
 	local Dir="$2"
 	[[ -d "$Dir" ]] || return 1
-	echo "Adding '${Dir}' to ${VarName}"
+	isFlagSet Quiet || echo "Adding '${Dir}' to ${VarName}"
 	AddToPath "$PriorityOpt" "$VarName" "$Dir"
 	return 0
 } # ConfigureProgramDir()
@@ -25,12 +27,13 @@ function ConfigureProgramDirs() {
 	# adds the standard POSIX directories to the standard POSIX variables
 	# for each of the specified directories
 	OPTIND=1
-	local -i DoHelp=0 Priority=0
+	local -i DoHelp=0 Priority=0 Quiet=0
 	local Option
-	while getopts 'ph?' Option ; do
+	while getopts 'pqh?' Option ; do
 		case "$Option" in
 			( 'h' | '?' ) DoHelp=1 ;;
 			( 'p' ) Priority=1 ;;
+			( 'q' ) Quiet=1 ;;
 			( * ) return 1 ;;
 		esac
 	done
@@ -43,6 +46,8 @@ function ConfigureProgramDirs() {
 		Options:
 		    -p
 		         priority: adds the directories in the place of maximum priority
+		    -q
+		         does not print information messages (errors are still printed)
 		    -h , -?
 		         show this help message
 		
@@ -52,6 +57,8 @@ function ConfigureProgramDirs() {
 	
 	local Dir
 	local -i nErrors=0
+	local -a Options
+	isFlagSet Quiet && Options+=( '-q' )
 	for Dir in "$@" ; do
 		if [[ ! -d "$Dir" ]]; then
 			ERROR "${FUNCNAME}: '${Dir}' is not a directory!"
@@ -64,23 +71,23 @@ function ConfigureProgramDirs() {
 		[[ "$Priority" != 0 ]] && PriorityOpt='-p' # prepend, high priority
 			
 		local -i nConfigured=0
-		ConfigureProgramDir "$PriorityOpt" PATH "${Dir}/bin" && let ++nConfigured
+		ConfigureProgramDir "${Options[@]}" "$PriorityOpt" PATH "${Dir}/bin" && let ++nConfigured
 
-		if ConfigureProgramDir "$PriorityOpt" LD_LIBRARY_PATH "${Dir}/lib64" ; then
+		if ConfigureProgramDir "${Options[@]}" "$PriorityOpt" LD_LIBRARY_PATH "${Dir}/lib64" ; then
 			let ++nConfigured
-			ConfigureProgramDir "$PriorityOpt" PKG_CONFIG_PATH "${Dir}/lib64/pkgconfig" && let ++nConfigured
+			ConfigureProgramDir "${Options[@]}" "$PriorityOpt" PKG_CONFIG_PATH "${Dir}/lib64/pkgconfig" && let ++nConfigured
 		elif ConfigureProgramDir LD_LIBRARY_PATH "${Dir}/lib32" ; then
 			let ++nConfigured
-			ConfigureProgramDir "$PriorityOpt" PKG_CONFIG_PATH "${Dir}/lib32/pkgconfig" && let ++nConfigured
+			ConfigureProgramDir "${Options[@]}" "$PriorityOpt" PKG_CONFIG_PATH "${Dir}/lib32/pkgconfig" && let ++nConfigured
 		elif ConfigureProgramDir LD_LIBRARY_PATH "${Dir}/lib" ; then
 			let ++nConfigured
-			ConfigureProgramDir "$PriorityOpt" PKG_CONFIG_PATH "${Dir}/lib/pkgconfig" && let ++nConfigured
+			ConfigureProgramDir "${Options[@]}" "$PriorityOpt" PKG_CONFIG_PATH "${Dir}/lib/pkgconfig" && let ++nConfigured
 		fi
 		
-		ConfigureProgramDir "$PriorityOpt" MANPATH "${Dir}/man" && let ++nConfigured
+		ConfigureProgramDir "${Options[@]}" "$PriorityOpt" MANPATH "${Dir}/man" && let ++nConfigured
 		
 		if [[ $nConfigured -gt 0 ]]; then
-			echo "Configured ${nConfigured} directories under '${Dir}'"
+			isFlagSet Quiet || echo "Configured ${nConfigured} directories under '${Dir}'"
 		else
 			ERROR "Directory '${Dir}' had no configurable directories!"
 			let ++nErrors
