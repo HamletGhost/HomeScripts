@@ -1,12 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import sys
 import math # sqrt()
-import optparse
 
-UsageMsg = """
-\t%prog [options] [source] [source] [...]
-
+__doc__ = """
 Sums all the numbers provided to it in input.
 
 If specified, source files are read in place of standard input; if a '-' is
@@ -18,6 +15,8 @@ considered commands (this feature needs to be turned on):
 - 'r', 'reset', 'clear': clears the sum and restarts
 - 'q', 'quit', 'exit': quits
 """
+__version__ = "1.0"
+
 
 class MultiBreak: pass
 
@@ -74,16 +73,6 @@ class Stats:
 # class Stats
 
 
-def append_const(option, opt_str, value, parser, *larg, **kwarg):
-	keyword = larg[0]
-	try: PrintList = getattr(parser.values, option.dest)
-	except AttributeError: # but you should add an empty default value yourself
-		PrintList = []
-		setattr(parser.values, option.dest, PrintList)
-	PrintList.append(keyword)
-# append_const()
-
-
 def PrintResults(stats, printlist):
 	PrintedList = []
 	for key in printlist:
@@ -129,81 +118,89 @@ def ResetStats(Columns, options):
 
 # begin of program
 if __name__ == "__main__":
-	Parser = optparse.OptionParser(usage=UsageMsg, version="0.2")
+	import argparse
+	
+	Parser = argparse.ArgumentParser(description=__doc__)
 	
 	Parser.set_defaults(bFloat=True, bCommands=False, Print=[], ColNumber=None)
 	
-	Parser.add_option("-d", "-i", "--integer", action="store_false",
-	  dest="bFloat", help="sets the sum of integral numbers")
-	Parser.add_option("-e", "-f", "-g", "--real", "--float",
-	  action="store_true", dest="bFloat", help="sets the sum of real numbers")
-	Parser.add_option("-C", "--enable-commands", action="store_true",
-	  dest="bCommands", help="enables special commands (see help)")
+	Parser.add_argument("sources", nargs='*', help="source files")
 	
-	Parser.add_option("-c", "--columns",
+	argGroup = Parser.add_argument_group(title="Numerical output format")
+	argGroup.add_argument("--integer", "-d", "-i", action="store_false",
+	  dest="bFloat", help="sets the sum of integral numbers")
+	argGroup.add_argument("--real", "--float", "-e", "-f", "-g", 
+	  action="store_true", dest="bFloat", help="sets the sum of real numbers")
+	argGroup.add_argument("--enable-commands", "-C", action="store_true",
+	  dest="bCommands", help="enables special commands (see help)")
+	argGroup.add_argument("--radix", type=int, dest="Radix", default=0,
+		help="radix of integer numbers (0: autodetect) [%(default)d]")
+	
+	argGroup = Parser.add_argument_group(title="Output arrangement")
+	
+	columnOptions = argGroup.add_mutually_exclusive_group()
+	columnOptions.add_argument("--columns", "-c", 
 		action="append", dest="Columns", default=[],
 		help="sets column mode and the columns to be included, comma separated"
 			" (first is 1)")
-	Parser.add_option("--allcolumns",
+	columnOptions.add_argument("--allcolumns",
 		action="store_true", dest="AllColumns", default=False,
 		help="sets column mode and uses all available columns")
-	Parser.add_option("-l", "--colnumber",
+  
+	argGroup.add_argument("--colnumber", "-l", 
 		action="store_true", dest="ColNumber",
 		help="writes the column number in the output [default: only when needed]")
-	Parser.add_option("-L", "--nocolnumber",
+	argGroup.add_argument("--nocolnumber", "-L",
 		action="store_false", dest="ColNumber",
 		help="omits the column number in the output [default: only when needed]")
-	Parser.add_option("--radix", type="int", dest="Radix", default=0,
-		help="radix of integer numbers (0: autodetect) [%default]")
 	
-	Parser.add_option("-a", "--average",
-		action="callback", callback=append_const, callback_args=("average",),
-		dest="Print",
+	argGroup = Parser.add_argument_group(title="Statistics output")
+	argGroup.add_argument("--average", "-a",
+		dest="Print", action="append_const", const="average",
 		help="prints the average of the input")
-	Parser.add_option("-s", "--sum",
-		action="callback", callback=append_const, callback_args=("sum",),
-		dest="Print",
+	argGroup.add_argument("--sum", "-s",
+		dest="Print", action="append_const", const="sum",
 		help="prints the sum of the input")
-	Parser.add_option("-q", "--sumsq",
-		action="callback", callback=append_const, callback_args=("sumsq",),
-		dest="Print",
+	argGroup.add_argument("--sumsq", "-q",
+		dest="Print", action="append_const", const="sumsq",
 		help="prints the sum of the squares of the input")
-	Parser.add_option("--rms",
-		action="callback", callback=append_const, callback_args=("rms",),
-		dest="Print",
+	argGroup.add_argument("--rms",
+		dest="Print", action="append_const", const="rms",
 		help="prints the root mean square of the input")
-	Parser.add_option("--rms2",
-		action="callback", callback=append_const, callback_args=("rms2",),
-		dest="Print",
+	argGroup.add_argument("--rms2",
+		dest="Print", action="append_const", const="rms2",
 		help="prints the mean square difference of the input")
-	Parser.add_option("--stdev",
-		action="callback", callback=append_const, callback_args=("stdev",),
-		dest="Print",
+	argGroup.add_argument("--stdev",
+		dest="Print", action="append_const", const="stdev",
 		help="prints the standard deviation of the input")
-	Parser.add_option("--stdevp",
-		action="callback", callback=append_const, callback_args=("stdevp",),
-		dest="Print",
+	argGroup.add_argument("--stdevp",
+		dest="Print", action="append_const", const="stdevp",
 		help="prints the deviation of the full population of the input")
 	
+	Parser.add_argument('--version', action="version",
+		version="%(prog)s version {}".format(__version__)
+		)
 	
-	(options, sources) = Parser.parse_args()
 	
-	if len(options.Print) == 0: options.Print = [ "sum" ]
+	args = Parser.parse_args()
 	
-	Columns = [ int(c.strip()) for c in ExpandList(options.Columns, ",") ]
+	if not args.Print: args.Print = [ "sum" ]
+	
+	Columns = [ int(c.strip()) for c in ExpandList(args.Columns, ",") ]
 	Columns.sort()
 	
-	if options.AllColumns and len(Columns) > 0:
+	if args.AllColumns and len(Columns) > 0:
 		Parser.error("Can't have --columns and --allcolumns options together.")
 	
-	ColNumber = options.ColNumber
+	ColNumber = args.ColNumber
 	
+	sources = args.sources
 	if len(sources) == 0: sources = [ '-' ] # add stdin as default
-	bFloat = options.bFloat
+	bFloat = args.bFloat
 	
 	nErrors = 0
 	
-	stats = ResetStats(Columns, options)
+	stats = ResetStats(Columns, args)
 	
 	iFile = 0
 	try:
@@ -225,12 +222,12 @@ if __name__ == "__main__":
 				Command = line.strip().lower()
 				
 				# parse for special commands
-				if options.bCommands:
+				if args.bCommands:
 					isCommand = True
 					if   Command in [ '=', 'p', 'partial', ]:
-						PrintAllResults(stats, ColNumber, options)
+						PrintAllResults(stats, ColNumber, args)
 					elif Command in [ 'r', 'c', 'reset', 'clear', ]:
-						stats = ResetStats(Columns, options)
+						stats = ResetStats(Columns, args)
 					elif Command in [ 'q', 'quit', 'exit', ]:
 						raise MultiBreak
 					else:
@@ -244,8 +241,8 @@ if __name__ == "__main__":
 					if len(Columns) > 0 and iWord not in Columns: continue
 					try:
 						if bFloat: value = float(word)
-						else: value = int(word, options.Radix)
-						if options.AllColumns:
+						else: value = int(word, args.Radix)
+						if args.AllColumns:
 							while iWord > len(stats): stats.append(Stats(bFloat))
 							stats[iWord-1].add(value)
 						elif len(Columns) > 0: stats[iWord - 1].add(value)
@@ -259,9 +256,9 @@ if __name__ == "__main__":
 						nErrors += 1
 				# for words
 				
-				if options.ColNumber is None:
+				if args.ColNumber is None:
 					ColNumber \
-					  = len(Columns) > 1 or (options.AllColumns and len(stats) > 1)
+					  = len(Columns) > 1 or (args.AllColumns and len(stats) > 1)
 				iLine += 1
 			# for source
 			
@@ -269,7 +266,7 @@ if __name__ == "__main__":
 		# for sname
 	except MultiBreak: pass
 	
-	PrintAllResults(stats, ColNumber, options)
+	PrintAllResults(stats, ColNumber, args)
 	
 	if nErrors > 0:
 		print(nErrors, "errors found.", file=sys.stderr)
