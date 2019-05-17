@@ -15,7 +15,7 @@ considered commands (this feature needs to be turned on):
 - 'r', 'reset', 'clear': clears the sum and restarts
 - 'q', 'quit', 'exit': quits
 """
-__version__ = "1.0"
+__version__ = "1.1"
 
 
 class MultiBreak: pass
@@ -40,6 +40,8 @@ class Stats:
 			self.e_w = 0
 			self.e_sum = 0
 			self.e_sumsq = 0
+		self.min_ = None
+		self.max_ = None
 	# clear()
 	
 	def add(self, value, weight=1):
@@ -52,6 +54,8 @@ class Stats:
 		self.e_w += weight
 		self.e_sum += weight * value
 		self.e_sumsq += weight * value**2
+		if self.min_ is None or value < self.min_: self.min_ = value
+		if self.max_ is None or value > self.max_: self.max_ = value
 	# add()
 	
 	def n(self): return self.e_n
@@ -70,6 +74,8 @@ class Stats:
 		if self.e_n < 2: return 0.
 		else: return self.rms() * math.sqrt(float(self.e_n)/(self.e_n-1))
 	def stdevp(self): return self.rms()
+	def min(self): return self.min_
+	def max(self): return self.max_
 # class Stats
 
 
@@ -176,6 +182,12 @@ if __name__ == "__main__":
 	argGroup.add_argument("--stdevp",
 		dest="Print", action="append_const", const="stdevp",
 		help="prints the deviation of the full population of the input")
+	argGroup.add_argument("--min", "-m",
+		dest="Print", action="append_const", const="min",
+		help="prints the minimum value encountered")
+	argGroup.add_argument("--max", "-M",
+		dest="Print", action="append_const", const="max",
+		help="prints the maximum value encountered")
 	
 	Parser.add_argument('--version', action="version",
 		version="%(prog)s version {}".format(__version__)
