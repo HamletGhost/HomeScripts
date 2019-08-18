@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Creates an executable from the first of the specified files.
 #
@@ -10,8 +10,16 @@
 # - LIB (expected "-Llibdir -llibrary ...")
 #
 
-DEFAULT_CPPFLAGS="-Wall -pedantic -std=c++14"
-: ${CXX:='g++'}
+DEFAULT_CPPFLAGS="-Wall -pedantic -std=c++17"
+
+if [[ -z "$CXX" ]]; then
+  if [[ -n "${WITHCLANG//0}" ]]; then
+    CXX='clang++'
+  else
+    CXX='g++'
+  fi
+fi
+
 
 function RemoveSourceSuffix {
 	local Name="$1"
@@ -25,6 +33,12 @@ function RemoveSourceSuffix {
 	echo "$Name"
 } # RemoveSourceSuffix()
 
+function Exec() {
+	local -a Cmd=( "$@" )
+	[[ -z "${QUIET//0}" ]] && echo "${Cmd[@]}"
+	"${Cmd[@]}"
+} # Exec()
+
 
 MainFile="$1"
 if [[ ! -r "$MainFile" ]]; then
@@ -36,7 +50,7 @@ ExecFile="$(RemoveSourceSuffix "$MainFile").exe"
 
 CPPFLAGS="${DEFAULT_CPPFLAGS} ${CPPFLAGS}"
 
-$CXX $CPPFLAGS $CXXFLAGS $OPTFLAGS $LDFLAGS $LIB -o "$ExecFile" "$@"
+Exec $CXX $CPPFLAGS $CXXFLAGS $OPTFLAGS $LDFLAGS $LIB -o "$ExecFile" "$@"
 res=$?
 if [[ $res == 0 ]]; then
 	echo "Executable file created: '${ExecFile}'"
