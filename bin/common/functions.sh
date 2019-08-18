@@ -1961,6 +1961,7 @@ function md() {
 	echo "$Dir"
 	[[ -d "$CreateDir" ]]
 } # md()
+unalias md >& /dev/null
 
 
 function chdir() {
