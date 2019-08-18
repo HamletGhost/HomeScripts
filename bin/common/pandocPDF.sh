@@ -4,7 +4,6 @@ SCRIPTNAME="$(basename "$0")"
 
 #################################################################################
 declare -r pandoc='pandoc'
-declare -a pandocOpt
 
 #################################################################################
 function CompileToPDF() {
@@ -17,7 +16,25 @@ function CompileToPDF() {
 } # CompileToPDF()
 
 #################################################################################
-declare -a InputFiles=( "$@" )
+declare -a InputFiles
+declare -a pandocOpt
+declare -i NoMoreOptions=0
+for (( iParam = 1 ; iParam <= $# ; ++iParam )); do
+  
+  Param="${!iParam}"
+  if [[ "${Param:0:1}" != '-' ]] || [[ $NoMoreOptions != 0 ]]; then
+    InputFiles+=( "$Param" )
+  else
+    case "$Param" in
+      ( '--' | '-' )
+        NoMoreOptions=1
+        ;;
+      ( * )
+        pandocOpt+=( "$Param" )
+    esac
+  fi
+done
+
 declare -i nInputs="${#InputFiles[@]}"
 
 if [[ $nInputs == 0 ]]; then
