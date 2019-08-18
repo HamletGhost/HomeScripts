@@ -4,37 +4,22 @@ SCRIPTNAME="$(basename "$0")"
 
 #################################################################################
 declare -r pandoc='pandoc'
+declare -a pandocOpt
+
+declare -r TargetFormat='HTML'
 
 #################################################################################
-function CompileToPDF() {
+function CompileToTargetFormat() {
 	local -r InputFile="$1"
-	local -r OutputFile="${InputFile%.md}.pdf"
+	local -r OutputFile="${InputFile%.md}.${TargetFormat,,}"
 	
 	echo "Compiling '${InputFile}' => '${OutputFile}'..."
 	$pandoc "${pandocOpt[@]}" -o "$OutputFile" "$InputFile"
 	
-} # CompileToPDF()
+} # CompileToTargetFormat()
 
 #################################################################################
-declare -a InputFiles
-declare -a pandocOpt
-declare -i NoMoreOptions=0
-for (( iParam = 1 ; iParam <= $# ; ++iParam )); do
-  
-  Param="${!iParam}"
-  if [[ "${Param:0:1}" != '-' ]] || [[ $NoMoreOptions != 0 ]]; then
-    InputFiles+=( "$Param" )
-  else
-    case "$Param" in
-      ( '--' | '-' )
-        NoMoreOptions=1
-        ;;
-      ( * )
-        pandocOpt+=( "$Param" )
-    esac
-  fi
-done
-
+declare -a InputFiles=( "$@" )
 declare -i nInputs="${#InputFiles[@]}"
 
 if [[ $nInputs == 0 ]]; then
@@ -45,7 +30,7 @@ fi
 declare -i nErrors=0
 
 for InputFile in "${InputFiles[@]}" ; do
-	CompileToPDF "$InputFile"
+	CompileToTargetFormat "$InputFile"
 	res=$?
 	if [[ $res != 0 ]]; then
 		echo "ERROR: compilation of '${InputFile}' failed with exit code ${res}!!" >&2

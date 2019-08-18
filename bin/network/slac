@@ -1,0 +1,4 @@
+#!/bin/sh
+
+# sourcing is important to have the script name propagated
+source sshell --autohost='slac' --domain='slac.stanford.edu' --user='petrillo' --k5realm='SLAC.STANFORD.EDU' "$@"
