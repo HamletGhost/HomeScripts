@@ -1,0 +1,25 @@
+#!/bin/bash
+#
+# Creates an executable from the first of the specified files.
+#
+# The following variables are added to the compilation/linking command line:
+# - CPPFLAGS (also adds some default flags)
+# - CXXFLAGS
+# - OPTFLAGS
+# - LDFLAGS
+# - LIB (expected "-Llibdir -llibrary ...")
+#
+
+DEFAULT_CPPFLAGS="-Wall -Werror -pedantic -std=c++17"
+: ${CXX:='g++'}
+
+MainFile="$1"
+if [[ ! -r "$MainFile" ]]; then
+	echo "You have to specify an existing C++ source file." >&2
+	exit 2
+fi
+
+CPPFLAGS="${DEFAULT_CPPFLAGS} ${CPPFLAGS}"
+
+$CXX $CPPFLAGS $CXXFLAGS $OPTFLAGS $LDFLAGS $LIB -o /dev/null -c "$@"
+
