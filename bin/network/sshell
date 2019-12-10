@@ -24,13 +24,18 @@
 #   login name not passed any more by default
 # 1.8 (20171202, petrillo@fnal.gov)
 #   added --ip option
+# 1.9 (20190820, petrillo@slac.stanford.edu)
+#   added tunnel mode
+# 1.10 (20190826, petrillo@slac.stanford.edu)
+#   changes the tunnel mode to support multiple tunnels on the same connection;
+#   also fixed tunnel mode help
 #
 
 SCRIPTNAME="$(basename "$0")"
 SCRIPTDIR="$(dirname "$0")"
 CWD="$(pwd)"
 
-SCRIPTVERSION="1.8"
+SCRIPTVERSION="1.10"
 
 # program paths
 : ${kinit:="kinit"}
@@ -43,7 +48,7 @@ ssh_default_options=( '-X' )
 # ssh_default_options=( '-X' '-Y' )
 transfer_default_options=( '--verbose' '--archive' )
 
-DefaultBaseMountPoint="${HOME}/Volumes"
+declare -r DefaultBaseMountPoint="${HOME}/Volumes"
 
 
 function help() {
@@ -282,6 +287,32 @@ function help_ping() {
 } # help_ping()
 
 
+function help_tunnel() {
+	cat <<-EOH
+	Mode: tunnel
+	  ${SCRIPTNAME}  <--tunnel|-T|tunnel|T> [options] [--] [tunnel options] target [command]
+	
+	The target is a remote server plus port specification,
+	\`localport=>[remotetarget:]remoteport\`, with \`remotetarget\` being
+	"localhost" by default.
+	An SSH tunnelling connection is opened to reach each of the specified remote
+	targets, from the port \`localport\` on this node (that is,
+	\`localhost:localport\`) to the \`remoteport\` port on the \`remotetarget\`
+	node, passing through the host${RemoteHost=+" ${RemoteHost}"} as specified in ${SCRIPTNAME} (\`-L\` option).
+	If a command is specified, it is executed on the host and the connection is
+	closed after the command terminates. Otherwise, an interactive shell is opened
+	unless \`--background\` option is specified.
+	
+	Tunnel mode options:
+	--background , -f
+	  if specified, the SSH connection is set in the background
+	
+	The common options are accepted:
+	
+	EOH
+} # help_tunnel()
+
+
 function help_mount() {
 	cat <<-EOH
 	Mode: mount
@@ -438,6 +469,9 @@ function SetOperationMode() {
 		fi
 	fi
 	MODE="$Mode"
+	local -r ModeParameters="init_parameters_${MODE}"
+	declare -f "$ModeParameters" >& /dev/null && "$ModeParameters"
+	
 } # SetOperationMode()
 
 
@@ -789,6 +823,7 @@ function parse_options_help() {
 			( '--write' | '-w' | 'write' | 'w' ) HelpTopics=( "${HelpTopics[@]}" 'write' ) ;;
 			( '--read' | '-r' | 'read' | 'r' )   HelpTopics=( "${HelpTopics[@]}" 'read' ) ;;
 			( '--exec' | '-x' | 'exec' | 'x' ) HelpTopics=( "${HelpTopics[@]}" 'exec' ) ;;
+			( '--tunnel' | '-T' | 'tunnel' | 't' ) HelpTopics=( "${HelpTopics[@]}" 'tunnel' ) ;;
 
 			( * )
 				[[ "$MODE" == 'help' ]] && FATAL 1 "No help available on '${Param}'"
@@ -918,6 +953,60 @@ function parse_options_ping() {
 	done
 	return $NDigested
 } # parse_options_ping()
+
+
+function init_parameters_tunnel() {
+	DBGN 3 "Initializing default parameters for '${MODE}' mode"
+	
+	TunnelSpecPattern='^([0-9]+)(=>|->)(([^:]*):)?([0-9]+)$'
+	
+	TunnelTargetSpecs=( )
+	GoToBackground=0
+	Command=( )
+} # init_parameters_tunnel()
+
+
+function parse_options_tunnel() {
+
+	local -i iParam=$(( $1 - 1 ))
+	shift
+	local -i NDigested=0
+	
+	while [[ $iParam -lt $# ]]; do
+		let ++iParam
+		local Param="${!iParam}"
+		
+		DBGN 3 "  is '${Param}' a ${MODE} option?"
+		
+		# by default, assume we swallow one parameter only
+		let ++NDigested
+		
+		if [[ "${Param:0:1}" == '-' ]] && isFlagUnset NoMoreOptions ; then
+			case "$Param" in
+				( '--openport='* )        LocalPort="${Param#--*=}" ;;
+				( '-P' )   let ++iParam ; LocalPort="${!iParam}" ;;
+				( '--background' | '-f' ) GoToBackground=1 ;;
+				( '--pid='* )             PIDFile="${Param#--*=}" ;;
+				( * )
+					FATAL 1 "Invalid ${MODE} mode option '${Param}'."
+			esac
+		else
+			NoMoreOptions=1
+			[[ "$Param" =~ $TunnelSpecPattern ]]
+			DBGN 1 "Positional parameter: '${Param}' => ${NoMoreTunnelSpecs:+"enough tunnel specifications: ${NoMoreTunnelSpecs}; "} already ${#TunnelTargetSpecs[@]} specs; $(declare -p BASH_REMATCH)}"
+			if isFlagUnset NoMoreTunnelSpecs && ( [[ "${#TunnelTargetSpecs[@]}" == 0 ]] || [[ "$Param" =~ $TunnelSpecPattern ]] ) ; then
+				TunnelTargetSpecs+=( "$Param" )
+			else
+				NoMoreTunnelSpecs=1
+				Command+=( "$Param" )
+			fi
+		fi
+		
+		break
+	done
+	
+	return $NDigested
+} # parse_options_tunnel()
 
 
 function parse_options_mount() {
@@ -1096,6 +1185,7 @@ while [[ $iParam -lt $nParams ]]; do
 				( '--read' | '-r' | 'read' | 'r' )     SetOperationMode 'read' ;;
 				( '--exec' | '-x' | 'exec' | 'x' )     SetOperationMode 'exec' ;;
 				( '--ping' | '-p' | 'ping' | 'p' )     SetOperationMode 'ping' ;;
+				( '--tunnel' | '-T' | 'tunnel' | 'T' ) SetOperationMode 'tunnel' ;;
 				( '--mount' | '-m' | 'mount' | 'm' )   SetOperationMode 'mount' ;;
 				( '--umount' | '-u' | 'umount' | 'u' ) SetOperationMode 'umount' ;;
 				( '--unmount' | 'unmount' )            SetOperationMode 'umount' ;;
@@ -1362,6 +1452,29 @@ case "$MODE" in
 		ExitCode=$?
 		;;
 
+	#############################################################################
+	( 'tunnel' )
+		TunnelTargetHost='localhost' # default
+		
+		# parse target
+		[[ "${#TunnelTargetSpecs[@]}" -gt 0 ]] || FATAL 1 "No target of tunnel specified."
+		
+		declare -a Tunnels=()
+		for TunnelTargetSpec in "${TunnelTargetSpecs[@]}" ; do
+			[[ "$TunnelTargetSpec" =~ $TunnelSpecPattern ]] || FATAL 1 "Target specification '${TunnelTargetSpec}' not valid (format: \`localport=>[host:]port\`)."
+			TunnelTargetLocalPort="${BASH_REMATCH[1]}"
+			TunnelTargetHost="${BASH_REMATCH[4]}"
+			TunnelTargetPort="${BASH_REMATCH[5]}"
+			Tunnels+=( '-L' "${TunnelTargetLocalPort}:${TunnelTargetHost}:${TunnelTargetPort}" )
+		done
+		TunnelOptions=( "${Tunnels[@]}" -o 'ExitOnForwardFailure yes' -o 'TCPKeepAlive yes' -o 'ServerAliveInterval 15' )
+		[[ "${#Command[@]}" == 0 ]] && TunnelOptions+=( '-N' ) && GoToBackground=1
+		isFlagSet GoToBackground && TunnelOptions+=( '-f' )
+		isIP6 "$TunnelTargetHost" || TunnelOptions+=( '-4' )
+		Execute $ssh -l "$RemoteUser" "${ssh_options[@]}" "${TunnelOptions[@]}" "$RemoteHostID" "${Command[@]}"
+		ExitCode=$?
+		;;
+	
 	#############################################################################
 	( 'ping' )
 		Execute $ping "${Options[@]}" -- "$RemoteHostID"
