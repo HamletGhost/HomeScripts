@@ -542,49 +542,63 @@ function STDERR() {
 	echo -e "$*" >&2
 } # STDERR()
 
-# functions are always redefined
-function STDERRwithDebug() {
+function STDERRwithDebugN() {
+  local -i N="$1"
+  shift
   local msg
-  isDebugging && msg+="${FUNCNAME[1]}@${BASH_LINENO[1]}| "
+  isDebugging && msg+="${FUNCNAME[N+1]}@${BASH_LINENO[N]}| "
   msg+="$*"
   echo -e "$msg" >&2
-} # STDERR()
+} # STDERRwithDebugN()
+
+function STDERRwithDebug() {
+  STDERRwithDebugN 1 "$@"
+} # STDERRwithDebug()
 
 function INFO() {
-	STDERRwithDebug "${InfoColor}$*${ResetColor}"
+	STDERRwithDebugN 1 "${InfoColor}$*${ResetColor}"
 } # INFO()
 
 function WARN() {
-	STDERRwithDebug "${WarnColor}Warning: $*${ResetColor}"
+	STDERRwithDebugN 1 "${WarnColor}Warning: $*${ResetColor}"
 } # WARN()
 
 function ERROR() {
-	STDERRwithDebug "${ErrorColor}Error: $*${ResetColor}"
+	STDERRwithDebugN 1 "${ErrorColor}Error: $*${ResetColor}"
 } # ERROR()
 
-function CRITICAL() {
+function CRITICAL_N() {
 	# A version of FATAL for functions expected to be called from command line.
 	# It only prints an error message. FATAL-like usage is envisioned as:
 	#     
-	#     CRITICAL 2 "File not found!"
+	#     CRITICAL_N 1 2 "File not found!"
 	#     return $?
 	#     
 	# 
-	local Code="$1"
-	shift
-	STDERRwithDebug "${FatalColor}Fatal error (${Code}): $*${ResetColor}"
+	local N="$1"
+	local Code="$2"
+	shift 2
+	STDERRwithDebugN "$((N + 1))" "${FatalColor}Fatal error (${Code}): $*${ResetColor}"
 	return $Code
 } # CRITICAL()
+function CRITICAL() { CRITICAL_N 1 "$@" ; }
 
-function FATAL() {
-	CRITICAL "$@"
-	exit $?
+
+function FATAL_N() {
+  local N="$1"
+  shift
+  CRITICAL_N "$((N + 1))" "$@"
+  exit $? # CRITICAL_N() returns the exit code
 } # FATAL()
+
+function FATAL() { FATAL_N 1 "$@" ; }
+
 
 function LASTFATAL() {
 	local Code="$?"
-	[[ "$Code" != 0 ]] && FATAL $Code $*
+	[[ "$Code" != 0 ]] && FATAL_N 1 $Code $*
 } # LASTFATAL()
+
 
 ###
 ###  debugging
@@ -593,8 +607,14 @@ function isDebugging() {
 	isFlagSet DEBUG
 }
 
+function DBG_N() {
+  local N="$1"
+  shift
+  STDERRwithDebugN "$((N + 1))" "${DebugColor}DBG| $*${ResetColor}"
+} # DBG_N()
+
 function DBG() {
-	isDebugging && STDERRwithDebug "${DebugColor}DBG| $*${ResetColor}"
+	isDebugging && DBG_N 1 "$@"
 } # DBG()
 
 function DBGN() {
@@ -603,7 +623,7 @@ function DBGN() {
 	# DebugLevel.
 	local -i DebugLevel="$1"
 	shift
-	[[ -n "$DEBUG" ]] && [[ "$DEBUG" -ge "$DebugLevel" ]] && DBG "$*"
+	[[ -n "$DEBUG" ]] && [[ "$DEBUG" -ge "$DebugLevel" ]] && DBG_N 1 "$@"
 } # DBGN()
 
 function DUMPVAR() {
