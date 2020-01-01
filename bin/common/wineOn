@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+################################################################################
+: ${wine:="wine"}
+
+: ${PrefixBase="${HOME}/wine"}
+
+
+################################################################################
+function Exec() {
+  declare -a Cmd=( "$@" )
+  echo "\$ ${Cmd[@]}"
+  "${Cmd[@]}"
+} # Exec()
+
+################################################################################
+declare PrefixName="$1"
+shift
+declare Program="$1"
+shift
+declare -a ProgramOptions=( "$@" )
+
+declare PrefixPath="${PrefixBase%/}/${PrefixName}"
+
+echo "Starting '${Program}' in '${PrefixName}' Wine area ('${PrefixPath}')"
+
+export WINEPREFIX="$PrefixPath"
+$wine "${WineOpts[@]}" "$Program" "${ProgramOptions[@]}"
+res="$?"
+
+[[ "$res" != 0 ]] && echo "${Program} exited with code ${res}."
+exit $res
+################################################################################
+
