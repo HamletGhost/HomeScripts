@@ -2,12 +2,12 @@
 
 declare Cwd="$(pwd)"
 
-declare -r CurrentKernelDir="/usr/src/linux"
+declare -r BaseKernelDir="/usr/src"
+declare -r CurrentKernelDir="${BaseKernelDir}/linux"
 declare -r ConfigFileName=".config"
 declare -r KernelDirCheckFile="Kconfig"
 
 declare -r CurrentKernelConfig="${CurrentKernelDir}/${ConfigFileName}"
-declare -r NewLinuxKernelName="$(dirname "$Cwd")"
 
 declare -ir NCores="$(grep -c -E '^processor[[:blank:]]*:' /proc/cpuinfo)"
 
@@ -23,10 +23,34 @@ function LASTFATAL() {
   [[ "$Code" == 0 ]] || FATAL "$Code" "$*"
 } # LASTFATAL()
 
+function isKernelSourceDir() {
+	local Dir="${1:-.}"
+	[[ -d "$Dir" ]] || return 1
+	[[ -f "${Dir}/${KernelDirCheckFile}" ]] || return 1
+	return 0
+} # isKernelSourceDir()
+
+if [[ ! -f "$NewConfig" ]] && ! isKernelSourceDir "$NewConfig" ; then
+	# let's say we are not in the right directory, then;
+	# and let's jump to the latest kernel directory
+	LatestKernelDir="$(ls -d "${BaseKernelDir}/linux-"* | sort -rV | head -n 1)"
+	LASTFATAL "Failed to detect the newest kernel source directory."
+	echo "Using '${LatestKernelDir}' as kernel source."
+	NewConfig="${LatestKernelDir}/.config"
+fi
+
+
 #
 # checks
 #
-[[ -r "Kconfig" ]] || FATAL 2 "this does not look like a Linux kernel source directory: '${KernelDirCheckFile}' not found."
+if ! isKernelSourceDir "$Cwd" ; then
+	# let's say we are not in the right directory, then;
+	# and let's jump to the latest kernel directory
+	LatestKernelDir="$(ls -d "${BaseKernelDir}/linux-"* | sort -rV | head -n 1)"
+	LASTFATAL "Failed to detect the newest kernel source directory (the current one, '${Cwd}', is not)."
+	cd "$LatestKernelDir"
+	Cwd="$(pwd)"
+fi
 
 [[ -d "$CurrentKernelDir" ]] || FATAL 2 "can't find the current kernel directory: '${CurrentKernelDir}'."
 
@@ -34,6 +58,7 @@ function LASTFATAL() {
 
 [[ "$Cwd" -ef "$CurrentKernelDir" ]] && FATAL 1 "this is the directory of the current kernel!"
 
+declare -r NewLinuxKernelName="$(basename "$Cwd")"
 echo "Configuring and compiling Linux kernel '${NewLinuxKernelName}'"
 
 #
@@ -73,7 +98,7 @@ LASTFATAL "kernel compilation failed."
 # closing remarks
 #
 
-echo "Compilation of kernel '${NewLinuxKernelName}' complete. Procees with installation (\`NewKernel.sh\`)."
+echo "Compilation of kernel '${NewLinuxKernelName}' complete. Proceed with installation (\`cd \"${Cwd}\" && NewKernel.sh\`)."
 
 exit 0
 

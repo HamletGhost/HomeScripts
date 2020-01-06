@@ -13,8 +13,25 @@ SCRIPTDIR="$(dirname "$0")"
 
 : ${WSIZE:="${COLUMNS:-150}"}
 
+BaseKernelDir='/usr/src'
 NewConfig="${1:-.config}"
-OldConfig="${2:-"/usr/src/linux"}"
+OldConfig="${2:-"${BaseKernelDir}/linux"}"
+
+function isKernelSourceDir() {
+	local Dir="$1"
+	[[ -d "$Dir" ]] || return 1
+	[[ -f "${Dir}/Kconfig" ]] || return 1
+	return 0
+} # isKernelSourceDir()
+
+if [[ ! -f "$NewConfig" ]] && ! isKernelSourceDir "$NewConfig" ; then
+	# let's say we are not in the right directory, then;
+	# and let's jump to the latest kernel directory
+	LatestKernelDir="$(ls -d "${BaseKernelDir}/linux-"* | sort -rV | head -n 1)"
+	[[ $? != 0 ]] && echo "Failed to detect the newest kernel source directory." >&2 && exit 1
+	echo "Using '${LatestKernelDir}' as kernel source."
+	NewConfig="${LatestKernelDir}/.config"
+fi
 
 [[ -d "$OldConfig" ]] && OldConfig="${OldConfig%%/}/.config"
 [[ -d "$NewConfig" ]] && NewConfig="${NewConfig%%/}/.config"
