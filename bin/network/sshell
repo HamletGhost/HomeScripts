@@ -29,13 +29,16 @@
 # 1.10 (20190826, petrillo@slac.stanford.edu)
 #   changes the tunnel mode to support multiple tunnels on the same connection;
 #   also fixed tunnel mode help
+# 1.11 (20200303, petrillo@slac.stanford.edu)
+#   added awareness of whether authentication is confirmed valid, and some
+#   behaviour depending on that
 #
 
 SCRIPTNAME="$(basename "$0")"
 SCRIPTDIR="$(dirname "$0")"
 CWD="$(pwd)"
 
-SCRIPTVERSION="1.10"
+SCRIPTVERSION="1.11"
 
 # program paths
 : ${kinit:="kinit"}
@@ -291,7 +294,7 @@ function help_tunnel() {
 	cat <<-EOH
 	Mode: tunnel
 	  ${SCRIPTNAME}  <--tunnel|-T|tunnel|T> [options] [--] [tunnel options] target [command]
-	
+
 	The target is a remote server plus port specification,
 	\`localport=>[remotetarget:]remoteport\`, with \`remotetarget\` being
 	"localhost" by default.
@@ -302,13 +305,13 @@ function help_tunnel() {
 	If a command is specified, it is executed on the host and the connection is
 	closed after the command terminates. Otherwise, an interactive shell is opened
 	unless \`--background\` option is specified.
-	
+
 	Tunnel mode options:
 	--background , -f
 	  if specified, the SSH connection is set in the background
-	
+
 	The common options are accepted:
-	
+
 	EOH
 } # help_tunnel()
 
@@ -317,14 +320,14 @@ function help_mount() {
 	cat <<-EOH
 	Mode: mount
 	  ${SCRIPTNAME}  <--mount|mount> [options] [MountPoint] [--] [SSHFS options]
-	
+
 	Mounts a remote directory into the specified one. The additional options are
 	passed to SSHFS.
 	If no mount point is specified, <BaseMountPoint>/<ServerName> is used
 	(<BaseMountPoint> can be specified as an option).
-	
+
 	SSHFS is required.
-	
+
 	Mount mode options:
 	--remotedir=REMOTEDIR [default: the remote home directory]
 	    mounts the specified remote directory
@@ -334,9 +337,9 @@ function help_mount() {
 	    if the target is already mounted, tries to remount it
 	--force , -f
 	    tries to push through errors to get the target mounted
-	
+
 	The common options are accepted:
-	
+
 	EOH
 } # help_mount()
 
@@ -345,18 +348,18 @@ function help_umount() {
 	cat <<-EOH
 	Mode: mount
 	  ${SCRIPTNAME}  <--umount|umount> [options]
-	
+
 	Unmounts a remote directory that has been mounted before.
 	It needs the same remote directory argument as the mount command.
-	
+
 	Mount mode options:
 	--remotedir=REMOTEDIR [default: the remote home directory]
 	    ummounts the specified remote directory
 	--force , -f
 	    ask the system to force unmounting
-	
+
 	The common options are accepted (most are just ignored):
-	
+
 	EOH
 } # help_umount()
 
@@ -471,7 +474,7 @@ function SetOperationMode() {
 	MODE="$Mode"
 	local -r ModeParameters="init_parameters_${MODE}"
 	declare -f "$ModeParameters" >& /dev/null && "$ModeParameters"
-	
+
 } # SetOperationMode()
 
 
@@ -613,9 +616,9 @@ function TransferData() {
 
 function CheckExecutable() {
   local ExecPath="$1"
-  
+
   which "$ExecPath" || FATAL 2 "Can't find the required executable '${ExecPath}'."
-  
+
 } # CheckExecutable()
 
 
@@ -656,7 +659,7 @@ function SplitAt() {
 	local -r Sep="$1"
 	local -r N="$2"
 	local Src="$3"
-	
+
 	DBGN 4 "Splitting '${Src}' with '${Sep}'"
 	local -a Tokens
 	if [[ -n "$Src" ]]; then
@@ -717,13 +720,13 @@ function OverrideIP() {
 	local HostIP="$(ResolveIP "$Host")"
 	[[ -n "$HostIP" ]] || FATAL 1 "Failed to retrieve the IP address of host '${Host}'"
 	DBGN 2 "Host '${Host}' => ${HostIP}"
-	
+
 	local HostIPtokens=( $(ParseIPoverride "$HostIP") )
 	[[ -n "${HostIPtokens[0]}" ]] || FATAL 1 "Failure to parse ${Host} IP ${HostIP}"
 	[[ "${HostIPtokens[0]}" =~ ERROR ]] && FATAL 1 "Failure to parse ${Host} IP ${HostIP} (${HostIPtokens[0]})"
-	
+
 	[[ "${HostIPtokens[0]}" == "${IPOverride[0]}" ]] || FATAL 1 "Host ${Host} returned IP ${HostIP} (${HostIPtokens[0]}), but override is specified as ${IPOverride[0]}."
-	
+
 	local -ri SepSize=1
 	local OverriddenIP
 	local -i N="${#HostIPtokens[@]}"
@@ -957,9 +960,9 @@ function parse_options_ping() {
 
 function init_parameters_tunnel() {
 	DBGN 3 "Initializing default parameters for '${MODE}' mode"
-	
+
 	TunnelSpecPattern='^([0-9]+)(=>|->)(([^:]*):)?([0-9]+)$'
-	
+
 	TunnelTargetSpecs=( )
 	GoToBackground=0
 	Command=( )
@@ -971,16 +974,16 @@ function parse_options_tunnel() {
 	local -i iParam=$(( $1 - 1 ))
 	shift
 	local -i NDigested=0
-	
+
 	while [[ $iParam -lt $# ]]; do
 		let ++iParam
 		local Param="${!iParam}"
-		
+
 		DBGN 3 "  is '${Param}' a ${MODE} option?"
-		
+
 		# by default, assume we swallow one parameter only
 		let ++NDigested
-		
+
 		if [[ "${Param:0:1}" == '-' ]] && isFlagUnset NoMoreOptions ; then
 			case "$Param" in
 				( '--openport='* )        LocalPort="${Param#--*=}" ;;
@@ -1001,10 +1004,10 @@ function parse_options_tunnel() {
 				Command+=( "$Param" )
 			fi
 		fi
-		
+
 		break
 	done
-	
+
 	return $NDigested
 } # parse_options_tunnel()
 
@@ -1014,7 +1017,7 @@ function parse_options_mount() {
 	local -i iParam=$(( $1 - 1 ))
 	shift
 	local -i NDigested=0
-	
+
 	while [[ $iParam -lt $# ]]; do
 		let ++iParam
 		local Param="${!iParam}"
@@ -1052,7 +1055,7 @@ function parse_options_mount() {
 				[[ "${#Destinations[@]}" == 0 ]] || FATAL 1 "Too many mount points specified ('${Param}')."
 				Destinations=( "$Param" )
 			fi
-			
+
 		fi
 
 		break
@@ -1066,7 +1069,7 @@ function parse_options_umount() {
 	local -i iParam=$(( $1 - 1 ))
 	shift
 	local -i NDigested=0
-	
+
 	while [[ $iParam -lt $# ]]; do
 		let ++iParam
 		local Param="${!iParam}"
@@ -1094,7 +1097,7 @@ function parse_options_umount() {
 			else
 				FATAL 1 "Unexpected argument ('${Param}')."
 			fi
-			
+
 		fi
 
 		break
@@ -1129,7 +1132,10 @@ function set_default_environment() {
 
 	KerberosNeeded=1
 	NoAsRemoteUser=0
-	
+
+	# whether the needed authentication is confirmed to be available
+	ConfirmedAuthentication=0
+
 } # set_default_environment()
 
 function set_environment_ping() {
@@ -1336,9 +1342,10 @@ set_environment "$MODE"
 
 if isFlagUnset KerberosNeeded ; then
 	DBGN 1 "No Kerberos authentication is needed."
+	ConfirmedAuthentication=1
 elif [[ -n "$KerberosRealm" ]]; then
 
-
+	ConfirmedAuthentication=0
 	declare -i GotKerberosTicket=0
 
 	KerberosUserInstance="${KerberosUser}${KerberosInstance:+/${KerberosInstance}}"
@@ -1369,6 +1376,7 @@ elif [[ -n "$KerberosRealm" ]]; then
 		DBGN 2 " (no attempt to obtain a new ticket)"
 	fi
 
+	ConfirmedAuthentication="$GotKerberosTicket"
 	if isFlagUnset GotKerberosTicket ; then
 		ERROR "Couldn't get a new Kerberos5 ticket. Hope there is a valid, existing one."
 	fi
@@ -1455,10 +1463,10 @@ case "$MODE" in
 	#############################################################################
 	( 'tunnel' )
 		TunnelTargetHost='localhost' # default
-		
+
 		# parse target
 		[[ "${#TunnelTargetSpecs[@]}" -gt 0 ]] || FATAL 1 "No target of tunnel specified."
-		
+
 		declare -a Tunnels=()
 		for TunnelTargetSpec in "${TunnelTargetSpecs[@]}" ; do
 			[[ "$TunnelTargetSpec" =~ $TunnelSpecPattern ]] || FATAL 1 "Target specification '${TunnelTargetSpec}' not valid (format: \`localport=>[host:]port\`)."
@@ -1474,7 +1482,7 @@ case "$MODE" in
 		Execute $ssh -l "$RemoteUser" "${ssh_options[@]}" "${TunnelOptions[@]}" "$RemoteHostID" "${Command[@]}"
 		ExitCode=$?
 		;;
-	
+
 	#############################################################################
 	( 'ping' )
 		Execute $ping "${Options[@]}" -- "$RemoteHostID"
@@ -1484,19 +1492,27 @@ case "$MODE" in
 	#############################################################################
 	( 'mount' )
 		SetMountPoint "${Destinations[0]}"
-		
+
+		if isFlagUnset ConfirmedAuthentication && isOSX ; then
+
+			# on OSX sshfs is fragile and attempting to use it with no valid
+			# authentication makes the OS unstable.
+			FATAL 1 "Remote mounting NOT attempted: make sure authentication succeeds and then try again."
+
+		fi
+
 		Execute $mkdir -p "$MountPoint"
 		LASTFATAL 1 "Can't write the mount point '${MountPoint}'"
-		
+
 		if isFlagSet DoRemount ; then
 			# this is quite crude...
 			Unmount "$MountPoint" # "$ForceMount"
 			res=$?
 			[[ $res != 0 ]] && DBGN 2 "umount failed with exit code ${res}. Ignoring."
 		fi
-		
+
 		RemoteDir="${RemoteHostID}:${Sources[0]}"
-		
+
 		Execute $sshfs "$RemoteDir" "$MountPoint" -o follow_symlinks "${Options[@]}"
 		ExitCode=$?
 		if [[ $ExitCode == 0 ]]; then
@@ -1511,7 +1527,7 @@ case "$MODE" in
 
 	#############################################################################
 	( 'umount' )
-		SetMountPoint "${Destinations[0]}"	
+		SetMountPoint "${Destinations[0]}"
 		Unmount "$MountPoint"
 		;;
 
