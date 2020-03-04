@@ -3,7 +3,7 @@
 # it's hard to figure out where the scripts directory is
 # without any clue; I am hard-coding directories here
 for LARSCRIPTDIR in \
-  "${HOME}/physics/LArSoft/software/scripts" \
+  "${HOME}/physics/experiments/LArSoft/software/scripts" \
   "${HOME}/LArSoft/software/scripts" \
   '' 
 do
