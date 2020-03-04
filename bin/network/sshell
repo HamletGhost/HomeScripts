@@ -32,13 +32,15 @@
 # 1.11 (20200303, petrillo@slac.stanford.edu)
 #   added awareness of whether authentication is confirmed valid, and some
 #   behaviour depending on that
+# 1.12 (20200303, petrillo@slac.stanford.edu)
+#   added Kerberos ticket forwarding (again?)
 #
 
 SCRIPTNAME="$(basename "$0")"
 SCRIPTDIR="$(dirname "$0")"
 CWD="$(pwd)"
 
-SCRIPTVERSION="1.11"
+SCRIPTVERSION="1.12"
 
 # program paths
 : ${kinit:="kinit"}
@@ -1159,6 +1161,7 @@ declare -i NoDefaultSSHoptions=0
 
 declare KerberosRealm='' KerberosUser="" KerberosInstance=''
 declare KerberosTicketLifetime='1d' KerberosTicketRenewTime='7d'
+declare -i KerberosTicketForward=1
 declare -i KerberosNewTicket=1 KerberosRenewTicket=1 isNAT=0
 
 declare -a Sources Destinations Command
@@ -1365,6 +1368,7 @@ elif [[ -n "$KerberosRealm" ]]; then
 
 		DBGN 2 " - attempt to obtain a new ticket"
 		declare -a KerberosOptions=(
+			${KerberosTicketForward:+"-f"}
 			${KerberosTicketLifetime:+"-l${KerberosTicketLifetime}"}
 			${KerberosTicketRenewTime:+"-r${KerberosTicketRenewTime}"}
 		)
