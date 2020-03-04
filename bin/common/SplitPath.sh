@@ -25,7 +25,7 @@ function help() {
 	 -h -? --help print this help message
 	 --           no more options
 	
-	If a Spec is an empty string, it is interpreted as `--stdin` option.
+	If a Spec is an empty string, it is interpreted as \`--stdin\` option.
 	EOH
 } # help()
 
