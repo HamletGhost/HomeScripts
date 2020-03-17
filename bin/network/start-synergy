@@ -1,12 +1,230 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 SCRIPTNAME="$(basename "$0")"
 
-SynergyCore="synergy-core"
+declare -r SynergyCore="synergy-core"
+declare -r ScriptPrefix='synergy-'
+declare -r ClientTag='clientOf'
+declare -r ServerMode='server'
+declare -r ClientMode='client'
+declare -i DEBUG
 
 : ${SYNERGY_EXEC:=$(which "$SynergyCore")}
 
-: ${CONFIGURATION_KEY:="${SCRIPTNAME#synergy-}"}
+: ${CONFIGURATION_KEY:="${SCRIPTNAME#${ScriptPrefix}}"}
+
+: ${DEBUG:=0}
+
+# ------------------------------------------------------------------------------
+function isFlagSet() {
+  local -r VarName="$1"
+  [[ -n "${!VarName//0}" ]]
+} # isFlagSet()
+
+function isFlagUnset() {
+  local -r VarName="$1"
+  [[ -z "${!VarName//0}" ]]
+} # isFlagUnset()
+
+function STDERR() { echo "$*" >&2 ; }
+function FATAL() {
+  local -i Code="$1"
+  shift
+  STDERR "FATAL ERROR (${Code}): $*"
+  exit $Code
+} # FATAL()
+
+function isDebugging() {
+  local -i Level="${1:-"1"}"
+  [[ -n "$DEBUG" ]] && [[ "$DEBUG" -ge "$Level" ]]
+} # isDebugging()
+
+function DBGN() {
+  local -i Level="$1"
+  shift
+  isDebugging "$Level" && STDERR "DBG[${DEBUG}]>  ${*}"
+} # isDebugging()
+
+function DBG() { DBGN 1 "$@" ; }
+
+
+function PrintHelp() {
+  cat <<EOH
+Starts Synergy ($(basename "$SynergyCore")) on a server and one or more clients.
+
+This script runs in two modes: server and client.
+This specific instance of the script ('${SCRIPTNAME}') runs as ${Mode}.
+Below is the documentation for both modes.
+
+
+Setup overview
+===============
+
+To support the choice of the configuration, this setup bypasses system services
+(like systemd's "synergy" unit) and manages synergy on its own.
+
+On the server side, two things are required:
+
+1. this script, with a name including all the allowed clients
+2. a configuration file describing the whole synergy node network
+
+In fact, the list of clients is used only to pick the correct configuration
+file and, in alternative, the configuration file can be overridden by setting
+the CONFIGFILE environment variable.
+
+On each client, this script is also required, with a name reflecting the name
+of the server (see "Client mode" information below).
+The actual configuration is from the server, so nothing else is required.
+
+
+Server mode
+============
+
+The server is the node this script is run.
+
+The list of allowed clients is deduced from the name of the script.
+The script name (in this case, '${SCRIPTNAME}') must follow the following pattern:
+
+[${ScriptPrefix}]<clientName>[+<clientName>...]
+
+
+Client mode
+============
+
+Synergy is started in client mode, and it will receive input events from a
+server.
+
+The server is deduced from the name of the script.
+[${ScriptPrefix}]${clientOf}<serverName>
+
+
+This script
+============
+
+This specific instance of the script, '${SCRIPTNAME}', runs as:
+
+EOH
+  PrintConfiguration_${Mode}
+  
+} # PrintHelp()
+
+
+# ------------------------------------------------------------------------------
+function DetectMode() {
+  Mode="undefined"
+  if [[ "${Clients[0]}" == "$ClientTag" ]]; then
+    Mode="$ClientMode"
+  else
+    Mode="$ServerMode"
+  fi
+} # DetectMode()
+
+
+function PrintConfiguration_server() {
+  
+  local MissingConfigurationFile
+  [[ -r "$ConfigurationFile" ]] || MissingConfigurationFile="$ConfigurationFile"
+  
+  cat <<EOM
+Server mode:
+
+* server name: '${ServerName}'
+* ${#Clients[@]} client(s): ${Clients[*]}
+* configuration file: '${ConfigurationFile}' ${MissingConfigurationFile:+"(NOT FOUND)"}
+
+EOM
+  
+} # PrintConfiguration_server()
+
+
+function ParseConfiguration_server() {
+  
+  ServerName="${HOSTNAME:-$(hostname)}"
+  Clients=( ${CONFIGURATION_KEY//+/ } )
+  
+  ConfigurationFile="${CONFIGFILE:-"${HOME}/local/etc/synergy/${CONFIGURATION_KEY}.conf"}"
+  
+} # ParseConfiguration_server()
+
+
+function StartSynergy_server() {
+
+  if [[ ! -r "$ConfigurationFile" ]]; then
+    echo "Configuration file '${ConfigurationFile}' not available!" >&2
+    exit 2
+  fi
+  
+  CloseAllSynergy
+  echo "Starting synergy server on '${ServerName}'...."
+  Exec "$SYNERGY_EXEC" --server --config "$ConfigurationFile" ${DISPLAY:+--display "$DISPLAY"}
+  
+  local -a StartSynergyOptions
+  isFlagSet FAKE && StartSynergyOptions+=( '--fake' ) # hardly useful...
+  isFlagSet DoVerbose && StartSynergyOptions+=( '--verbose' ) # hardly useful...
+  if [[ -n "$CLIENTDEBUG" ]]; then
+    StartSynergyOptions+=( "--debug=${CLIENTDEBUG}" )
+  else
+    [[ "${DEBUG:-0}" -gt 0 ]] && StartSynergyOptions+=( "--debug=${DEBUG}" ) # hardly useful...
+  fi
+  
+  for Client in "${Clients[@]}" ; do
+    echo "Turning on synergy client on '${Client}'"
+    # we explicitly disable X forwarding, since we don't want the client to send information to *our* X server!
+    # also, since the synergy-clientOf+* scripts are expected to be in user's area,
+    # user's enviromnent should be fully set up to allow bash to find it
+  #	Exec ssh -x "$Client" "bash --login -i -c 'synergy-clientOf+${ServerName} ${ServerName}'"
+  #  Exec ssh -x "$Client" "bash --login -i -c synergy-clientOf+${ServerName} ${StartSynergyOptions[@]}"
+    Exec ssh -x "$Client" "synergy-clientOf+${ServerName}" "${StartSynergyOptions[@]}"
+  done
+} # StartSynergy_server()
+
+
+
+function PrintConfiguration_client() {
+  
+  cat <<-EOM
+  Client mode:
+  
+  * server name: '${ServerName}'
+  
+EOM
+} # PrintConfiguration_client()
+
+
+function ParseConfiguration_client() {
+  
+  DBGN 2 "Clients (${#Clients[@]}): ${Clients[@]}"
+
+  # shift all clients removing the first one (which is the tag)
+  if [[ "${Clients[0]}" == "$ClientTag" ]]; then
+    unset Clients[0]
+    Clients=( "${Clients[@]}" )
+  fi
+  
+  ServerName="${Clients[0]}"
+  [[ -n "$ServerName" ]] || FATAL 1 "Can't extract server name from script name '${SCRIPTNAME}'."
+  
+} # ParseConfiguration_client()
+
+
+function StartSynergy_client() {
+
+  echo "Starting synergy in client mode (host: ${ServerName})"
+  
+  CloseAllSynergy
+  Exec "$SYNERGY_EXEC" --client ${DISPLAY:+--display "$DISPLAY"} ${ServerName:+"$ServerName"}
+  
+} # StartSynergy_client()
+
+
+function PrintConfiguration() { PrintConfiguration_${Mode} ; }
+
+
+function ParseConfiguration() { ParseConfiguration_${Mode} ; }
+
+
+function StartSynergy() { StartSynergy_${Mode} ; }
+
 
 function CloseAllSynergy() {
 	if ps -C "$SynergyCore" > /dev/null ; then
@@ -16,44 +234,55 @@ function CloseAllSynergy() {
 }
 
 function Exec() {
-	local -a Cmd=( "$@" )
-	echo "CMD> ${Cmd[@]}"
-	"${Cmd[@]}"
+  local -a Cmd=( "$@" )
+  if isFlagSet FAKE || isFlagSet DoVerbose ; then
+    echo "CMD> ${Cmd[@]}"
+  fi
+  isFlagSet FAKE || "${Cmd[@]}"
 }
 
-declare -r ClientTag='clientOf'
 
-declare -a CLIENTS=( ${CONFIGURATION_KEY//+/ } )
+# ------------------------------------------------------------------------------
 
-if [[ "${CLIENTS[0]}" == "$ClientTag" ]]; then
+declare -r HostName="${HOSTNAME:-$(hostname)}"
+declare -a Clients=( ${CONFIGURATION_KEY//+/ } )
 
-	Address="$1"
-	echo "Starting synergy${HOSTNAME:+" from ${HOSTNAME}"} in client mode (host: ${Address})"
-	
-	CloseAllSynergy
-	Exec "$SYNERGY_EXEC" --client ${DISPLAY:+--display "$DISPLAY"} ${Address:+"$Address"}
-	
-else
-	Server="$(hostname)"
+# set the Mode variable to ServerMode or ClientMode based on script name
+DetectMode
 
-	: ${CONFIGFILE:="${HOME}/local/etc/synergy/${CONFIGURATION_KEY}.conf"}
-	if [[ ! -r "$CONFIGFILE" ]]; then
-		echo "Configuration file '${CONFIGFILE}' not available!" >&2
-		exit 2
-	fi
-	
-	CloseAllSynergy
-	HostName="${HOSTNAME:-"$(hostname)"}"
-	echo "Starting synergy server on '${HostName}'..."
-	Exec "$SYNERGY_EXEC" --server --config "$CONFIGFILE" --enable-drag-drop ${DISPLAY:+--display "$DISPLAY"}
+declare -a Arguments
+declare -i NoMoreOptions=0
+declare -i DoHelp=0 DoVerbose=0
+for (( iParam=1 ; iParam <= $# ; ++iParam )); do
+  Param="${!iParam}"
+  if isFlagUnset NoMoreOptions && [[ "${Param:0:1}" == '-' ]]; then
+    case "$Param" in
+      ( '--fake' | '-n' )        FAKE=1 ;;
+      ( '--debug' | '-d' )       DEBUG=1 ;;
+      ( '--debug='* | '-d' )     DEBUG="${Param#--*=}" ;;
+      ( '--clientdebug' )        CLIENTDEBUG=1 ;;
+      ( '--clientdebug='* )      CLIENTDEBUG="${Param#--*=}" ;;
+      ( '--verbose' | '-V' )     DoVerbose=1 ;;
+      ( '--help' | '-h' | '-?' ) DoHelp=1 ;;
+      ( '--' | '-' )             NoMoreOptions=1;;
+      ( * )
+        FATAL 1 "Unsupported option: '${Param}'."
+    esac
+  else
+    Arguments+=( "$Param" )
+  fi
+done
 
-	
-	for Client in "${CLIENTS[@]}" ; do
-		echo "Turning on synergy client on '${Client}'"
-		# we explicitly disable X forwarding, since we don't want the client to send information to *our* X server!
-		# also, since the synergy-clientOf+* scripts are expected to be in user's area,
-		# user's enviromnent should be fully set up to allow bash to find it
-	#	Exec ssh -x "$Client" "bash --login -i -c 'synergy-clientOf+${SERVER} ${HostName}'"
-		Exec ssh -x "$Client" "bash --login -i -c synergy-clientOf+${Server}"
-	done
+isDebugging 10 && set -x
+
+ParseConfiguration "${Arguments[@]}"
+
+if isFlagSet DoHelp ; then
+  PrintHelp
+  exit 0
 fi
+
+isFlagSet DoVerbose && PrintConfiguration
+
+StartSynergy
+
