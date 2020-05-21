@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 #
 # Extracts single pages from a PDF file.
 # Run with `--help` for usage instrutcions.
