@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 #
 # Extracts single pages from a PDF file.
 # Run with `--help` for usage instrutcions.
@@ -25,7 +25,7 @@ function help() {
 	If LastPage is not specified, only one page is extracted.
 
 	Options:
-	--output=OUTUTFILE [SourceFile]
+	--output=OUTPUTFILE [SourceFile]
 	    base the name of output file(s) on OUTPUTFILE
 	--single , -S
 	    splits the specified range in single PDF pages
@@ -51,37 +51,46 @@ function PDFpages() {
 
 
 function ExtractPages() {
-	# Usage:  ExtractPages SourceFile OutputFile FirstPage LastPage
-	local SourceFile="$1"
-	local OutputFile="$2"
-	local -i FirstPage="$3"
-	local LastPage="${4:-${FirstPage}}"
+  # Usage:  ExtractPages SourceFile OutputFile FirstPage LastPage
+  local SourceFile="$1"
+  local OutputFile="$2"
+  local -i FirstPage="$3"
+  local LastPage="${4:-${FirstPage}}"
 
-	[[ "$LastPage" == '-' ]] && LastPage="$(PDFpages "$SourceFile")"
+  [[ "$LastPage" == '-' ]] && LastPage="$(PDFpages "$SourceFile")"
 
-	local SourceName="$(basename "$SourceFile")"
-	
-	local TagType PageLabel
-	if [[ "$FirstPage" == "$LastPage" ]]; then
-		TagType="page"
-		PageLabel="${FirstPage}"
-	else
-		TagType="pages"
-		PageLabel="${FirstPage}-${LastPage}"
-	fi
-	local Tag="${TagType}${PageLabel}"
-	if [[ -z "$OutputFile" ]]; then
-		BaseName="${SourceName%.pdf}"
-		Extension="${SourceName#${BaseName}}"
-		OutputFile="${BaseName}${Tag:+_${Tag}}.pdf"
-		isFlagSet FORCE && rm -f "$OutputFile"
-		[[ -r "$OutputFile" ]] && FATAL 1 "Output file '${OutputFile}' already exist. Nothing done."
-	fi
-	
-	$gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -dFirstPage="$FirstPage" -dLastPage="$LastPage" -sOutputFile="$OutputFile" "$SourceFile" > /dev/null
-	local res=$?
-	[[ $res == 0 ]] && echo "'${OutputFile}' created from ${TagType} ${PageLabel} of '${SourceFile}'."
-	return $?
+  local SourceName="$(basename "$SourceFile")"
+  
+  local TagType PageLabel
+  if [[ "$FirstPage" == "$LastPage" ]]; then
+    TagType="page"
+    PageLabel="${FirstPage}"
+  else
+    TagType="pages"
+    PageLabel="${FirstPage}-${LastPage}"
+  fi
+  local Tag="${TagType}${PageLabel}"
+  
+  local OutputDir=""
+  if [[ -d "$OutputFile" ]] || [[ "${OutputFile:-1}" == '/' ]]; then
+    # this is a directory
+    OutputDir="$OutputFile"
+    OutputFile=""
+  fi
+
+  if [[ -z "$OutputFile" ]]; then
+    BaseName="${SourceName%.pdf}"
+    Extension="${SourceName#${BaseName}}"
+    OutputFile="${OutputDir:+${OutputDir}/}${BaseName}${Tag:+_${Tag}}.pdf"
+    isFlagSet FORCE && rm -f "$OutputFile"
+    [[ -r "$OutputFile" ]] && FATAL 1 "Output file '${OutputFile}' already exist. Nothing done."
+  fi
+  
+  [[ -n "$OutputDir" ]] && mkdir -p "$OutputDir"
+  $gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -dFirstPage="$FirstPage" -dLastPage="$LastPage" -sOutputFile="$OutputFile" "$SourceFile" > /dev/null
+  local res=$?
+  [[ $res == 0 ]] && echo "'${OutputFile}' created from ${TagType} ${PageLabel} of '${SourceFile}'."
+  return $?
 } # ExtractPages()
 
 

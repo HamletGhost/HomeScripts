@@ -6,6 +6,8 @@
 # 20150227 [v 2.0]
 #   complete rewrite; removed some features that might turn out to be needed
 #   in the future
+# 20200111 [v 2.1]
+#   added `--verbose` option
 #
 #
 
@@ -61,7 +63,7 @@ fi
 ################################################################################
 SCRIPTNAME="$(basename "$0")"
 SCRIPTDIR="$(dirname "$0")"
-SCRIPTVERSION="v. 2.0"
+SCRIPTVERSION="v. 2.1"
 
 ###
 ### scripts defaults
@@ -145,7 +147,11 @@ function ExecCommand() {
 			DBG "ExecCommand: output redirection to /dev/null overridden in debug mode"
 		fi
 	fi
-	DBG "$@"${StdOut:+" 1> '${StdOut}'"}${StdErr:+" 2> '${StdErr}'"}
+	if isFlagSet BeVerbose ; then
+    MSG "Cmd> $@${StdOut:+" 1> '${StdOut}'"}${StdErr:+" 2> '${StdErr}'"}"
+	else
+    DBG "$@"${StdOut:+" 1> '${StdOut}'"}${StdErr:+" 2> '${StdErr}'"}
+  fi
 	eval "$@" ${StdOut:+ 1> "$StdOut"} ${StdErr:+ 2> "$StdErr"}
 } # ExecCommand()
 
@@ -168,7 +174,7 @@ function help() {
 	
 	The default realm is '${DEFAULTREALM}'
 	
-	Options:
+	Kerberos ptions:
 	--user=KRB5USER ${KRB5USER:+"['${KRB5USER}']"}
 	    the Kerberos user to get ticket for
 	--instance=KRB5INSTANCE ${KRB5INSTANCE:+"['${KRB5INSTANCE}']"}
@@ -191,6 +197,10 @@ function help() {
 	    be renewed any more
 	--nat
 	    tells Kerberos we are behind a NAT
+	
+	General program options:
+	--verbose , -v
+	    increases verbosity on screen
 	
 	EOH
 } # help()
@@ -324,6 +334,7 @@ for (( iParam = 1 ; iParam <= $# ; ++iParam )); do
 			( '--commands='* )         CommandsStream="${Param#--*=}" ;;
 			
 			### common options ###
+			( '--verbose' | '-v' )     BeVerbose=1 ;;
 			( '--debug' )              DEBUG=1 ;;
 			( '--debug='* )            DEBUG="${Param#--*=}" ;;
 			( '--version' | '-V' )     AddAction 'PrintVersion' ;;
