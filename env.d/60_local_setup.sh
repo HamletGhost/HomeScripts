@@ -29,11 +29,12 @@ function ConfigureProgramDirs() {
 	OPTIND=1
 	local -i DoHelp=0 Priority=0 Quiet=0
 	local Option
-	while getopts 'pqh?' Option ; do
+	while getopts 'pqnh?' Option ; do
 		case "$Option" in
 			( 'h' | '?' ) DoHelp=1 ;;
 			( 'p' ) Priority=1 ;;
 			( 'q' ) Quiet=1 ;;
+			( 'n' ) AcceptFailure=1 ;;
 			( * ) return 1 ;;
 		esac
 	done
@@ -46,6 +47,8 @@ function ConfigureProgramDirs() {
 		Options:
 		    -p
 		         priority: adds the directories in the place of maximum priority
+		    -n
+		         if a directory does not exist, it is just ignored
 		    -q
 		         does not print information messages (errors are still printed)
 		    -h , -?
@@ -61,8 +64,14 @@ function ConfigureProgramDirs() {
 	isFlagSet Quiet && Options+=( '-q' )
 	for Dir in "$@" ; do
 		if [[ ! -d "$Dir" ]]; then
-			ERROR "${FUNCNAME}: '${Dir}' is not a directory!"
-			let ++nErrors
+			if isFlagUnset AcceptFailure ; then
+				ERROR "${FUNCNAME}: '${Dir}' is not a directory!"
+				let ++nErrors
+			elif isFlagUnset Quiet ; then
+				WARN "${FUNCNAME}: '${Dir}' is not a directory: ignored."
+			else
+				DBG "${FUNCNAME}: '${Dir}' is not a directory: ignored."
+			fi
 			continue
 		fi
 	#	echo "Try '${Dir}'"
