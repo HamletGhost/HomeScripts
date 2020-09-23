@@ -12,17 +12,17 @@ function ListWindows() {
 	$tmux list-windows -F "#{pane_tty} #{window_index} #{window_name}"
 } # ListWindows()
 
-function isInList() {
+function matchesAny() {
 	# isInList Item [Key Key ...]
 	local Item="$1"
 	shift
 	local -a Keys=( "$@" )
 	local Key
 	for Key in "${Keys[@]}" ; do
-		[[ "$Item" == "$Key" ]] && return 0
+		[[ "$Item" =~ ${Key}$ ]] && return 0
 	done
 	return 1
-} # isInList()
+} # matchesAny()
 
 function FilterOutput() {
 	local -a Keys=( "$@" )
@@ -31,8 +31,8 @@ function FilterOutput() {
 	local tty window_index window_name
 	local -i Matches=0
 	while read tty window_index window_name ; do
-		if [[ -z "$DoFilter" ]] || isInList "$(basename "$tty")" "${Keys[@]}" ; then
-			printf '%-15s - #%02d  "%s"\n' "$tty" "$window_index" "$window_name"
+		if [[ -z "$DoFilter" ]] || matchesAny "${tty#/dev/}" "${Keys[@]}" ; then
+			printf '%-15s - #%02d  "%s"\n' "${tty#/dev/}" "$window_index" "$window_name"
 			let ++Matches
 		fi
 	done
@@ -40,7 +40,11 @@ function FilterOutput() {
 } # FilterOutput()
 
 
-declare -a Specs=( "$@" )
+declare -a Specs
+for Spec in "$@" ; do
+	[[ "$Spec" =~ / ]] || Spec="pts/${Spec}"
+	Specs+=( "$Spec" )
+done
 
 ListWindows | FilterOutput "${Specs[@]}"
 
