@@ -65,6 +65,7 @@ function isExperiment() {
 
 function grid_proxy() {
 	local Experiment="${1:-$(isExperiment)}"
+	local Role="${2:-Analysis}"
 	local Server
 	local Command
 	case "$Experiment" in
@@ -73,28 +74,28 @@ function grid_proxy() {
 			### DUNE setup
 			###
 			Server="dune"
-			Command="/dune/Role=Analysis"
+			Command="/dune/Role=${Role}"
 			;;
 		( 'MicroBooNE' | 'uBooNE' )
 			###
 			### MicroBooNE setup
 			###
 			Server="fermilab"
-			Command="/fermilab/uboone/Role=Analysis"
+			Command="/fermilab/uboone/Role=${Role}"
 			;;
 		( 'SBND' )
 			###
 			### SBND setup
 			###
 			Server="fermilab"
-			Command="/fermilab/sbnd/Role=Analysis"
+			Command="/fermilab/sbnd/Role=${Role}"
 			;;
 		( 'ICARUS' )
 			###
 			### ICARUS setup
 			###
 			Server="fermilab"
-			Command="/fermilab/icarus/Role=Analysis"
+			Command="/fermilab/icarus/Role=${Role}"
 			;;
 		( * )
 			echo "No grid certificate settings for experiment '${Experiment}'" >&2
@@ -102,7 +103,7 @@ function grid_proxy() {
 	esac
 	which cigetcert >& /dev/null || setup cigetcert
 	cigetcert -s 'fifebatch.fnal.gov' || return $?
-#	echo "Requesting ${Experiment} certificate: ${Server}${Command:+":${Command}"}"
+	echo "Requesting ${Experiment} certificate: ${Server}${Command:+":${Command}"}"
 	voms-proxy-init -noregen -rfc -voms "${Server}${Command:+":${Command}"}"
 } # grid_proxy()
 
