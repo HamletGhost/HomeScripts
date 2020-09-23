@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 
 GetTicket.sh
-fnal --noticket --asuser='cvmfssbnd' --host='oasiscfs02' "$@"
+fnal --noticket --asuser='cvmfsicarus' --host='oasiscfs02' "$@"
 
