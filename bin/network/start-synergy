@@ -2,18 +2,17 @@
 
 SCRIPTNAME="$(basename "$0")"
 
-declare -r SynergyCore="synergy-core"
+
 declare -r ScriptPrefix='synergy-'
 declare -r ClientTag='clientOf'
 declare -r ServerMode='server'
 declare -r ClientMode='client'
+
 declare -i DEBUG
-
-: ${SYNERGY_EXEC:=$(which "$SynergyCore")}
-
 : ${CONFIGURATION_KEY:="${SCRIPTNAME#${ScriptPrefix}}"}
 
 : ${DEBUG:=0}
+
 
 # ------------------------------------------------------------------------------
 function isFlagSet() {
@@ -156,7 +155,7 @@ function StartSynergy_server() {
   
   CloseAllSynergy
   echo "Starting synergy server on '${ServerName}'...."
-  Exec "$SYNERGY_EXEC" --server --config "$ConfigurationFile" ${DISPLAY:+--display "$DISPLAY"}
+  SynergyServer --server --config "$ConfigurationFile" ${DISPLAY:+--display "$DISPLAY"}
   
   local -a StartSynergyOptions
   isFlagSet FAKE && StartSynergyOptions+=( '--fake' ) # hardly useful...
@@ -212,7 +211,7 @@ function StartSynergy_client() {
   echo "Starting synergy in client mode (host: ${ServerName})"
   
   CloseAllSynergy
-  Exec "$SYNERGY_EXEC" --client ${DISPLAY:+--display "$DISPLAY"} ${ServerName:+"$ServerName"}
+  Exec SynergyClient ${DISPLAY:+--display "$DISPLAY"} ${ServerName:+"$ServerName"}
   
 } # StartSynergy_client()
 
@@ -227,9 +226,13 @@ function StartSynergy() { StartSynergy_${Mode} ; }
 
 
 function CloseAllSynergy() {
-	if ps -C "$SynergyCore" > /dev/null ; then
-		echo "Closing synergy clients and servers already running."
-		killall "$SYNERGY_EXEC"
+	if ps -C "$SynergyClientProcess" > /dev/null > /dev/null ; then
+		echo "Closing synergy clients already running."
+		killall "$SynergyClientProcess"
+	fi
+	if ps -C "$SynergyServerProcess" > /dev/null ; then
+		echo "Closing synergy servers already running."
+		killall "$SynergyServerProcess"
 	fi
 }
 
@@ -240,6 +243,67 @@ function Exec() {
   fi
   isFlagSet FAKE || "${Cmd[@]}"
 }
+
+
+function SynergySetup() {
+  
+  if which 'synergy-core' >& /dev/null ; then
+    
+    SYNERGY_VERSION="2"
+
+    declare -r SynergyCore="synergy-core"
+    
+    : ${SYNERGY_EXEC:=$(which "$SynergyCore")}
+    
+    SynergyClientProcess="$SynergyCore"
+    SynergyServerProcess="$SynergyCore"
+    
+  else
+    
+    SYNERGY_VERSION="1"
+    
+    SynergyClientProcess="synergyc"
+    SynergyServerProcess="synergys"
+    
+  fi
+  echo "Synergy version ${SYNERGY_VERSION} detected on $(hostname) (${Mode})."
+} # SynergySetup()
+
+
+function SynergyServer() {
+  
+  case "$SYNERGY_VERSION" in
+    ( 1 )
+      Exec synergys "$@"
+      return
+      ;;
+    ( 2 )
+      Exec "$SYNERGY_EXEC" --server "$@"
+      return
+      ;;
+    ( * )
+      FATAL 1 "${SCRIPTNAME}: Synergy server for version ${SYNERGY_VERSION} not supported."
+  esac
+  
+} # SynergyServer()
+
+
+function SynergyClient() {
+  
+  case "$SYNERGY_VERSION" in
+    ( 1 )
+      Exec synergyc "$@"
+      return
+      ;;
+    ( 2 )
+      Exec "$SYNERGY_EXEC" --client "$@"
+      return
+      ;;
+    ( * )
+      FATAL 1 "${SCRIPTNAME}: Synergy client for version ${SYNERGY_VERSION} not supported."
+  esac
+  
+} # SynergyClient()
 
 
 # ------------------------------------------------------------------------------
@@ -283,6 +347,8 @@ if isFlagSet DoHelp ; then
 fi
 
 isFlagSet DoVerbose && PrintConfiguration
+
+SynergySetup
 
 StartSynergy
 
