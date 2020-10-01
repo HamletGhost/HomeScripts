@@ -24,11 +24,11 @@ def FormatSeconds(s):
     if m >= 60.:
       h = m / 60
       m -= h * 60
-      return "{:d}h {:02d}' {:02.2f}\"".format(h, m, s)
+      return "{:d}h {:02d}' {:02.1f}\"".format(h, m, s)
     else:
-      return "{:d}' {:02.2f}\"".format(m, s)
+      return "{:d}' {:02.1f}\"".format(m, s)
   else:
-    return "{:.2f}\"".format(s)
+    return "{:.1f}\"".format(s)
 # FormatSeconds()
 
 
@@ -95,11 +95,11 @@ def Rehearse(argv):
   
   Parser.set_defaults(bFloat=True, bCommands=False, Print=[], ColNumber=None)
   
-  Parser.add_argument
-    ("PID", nargs='1', type=int, help="ID of a running okular process")
+  Parser.add_argument \
+    ("PID", type=int, help="ID of a running okular process")
   Parser.add_argument("PDFfile", nargs='?', help="PDF file to open")
   
-  args = Parser.parse_args(argv)
+  args = Parser.parse_args(argv[1:])
   
   OkularPID = args.PID
   if args.PDFfile is not None:
@@ -153,6 +153,7 @@ def Rehearse(argv):
         print("Press <Enter> to prepare...")
       elif mode == "GetReady":
         print("Press <Enter> to start! (then keep pressing <Enter>)")
+        totalTime = 0.0
       elif mode == "Rehearsal":
         CurrentTimer = None
         if CurrentPage <= len(Timers):
@@ -180,20 +181,20 @@ def Rehearse(argv):
         print("Page %*d: %s (total: %s)"
          % (Padding, iPage+1, SlideTimeStr, FormatSeconds(ElapsedTime)))
       elif mode == "RehearsalEnd":
-        print "Document %s, %d pages:" % (DocumentName, TotalPages)
+        print("Document %s, %d pages:" % (DocumentName, TotalPages))
         Padding = len(str(TotalPages))
         NSlides = 0
         ElapsedTime = 0
         for iPage, PageTimer in enumerate(Timers):
           if PageTimer is None: continue # page skipped
-          print("Page %*d: %s"
-           % (Padding, iPage+1, PageTimer.format_partial()))
           ElapsedTime += PageTimer.partial()
+          print("Page %*d: %10s (%10s)"
+           % (Padding, iPage+1, PageTimer.format_partial(), FormatSeconds(ElapsedTime)))
           NSlides += 1
         # for
         print("Time elapsed for %d slides: %s"
          % (NSlides, FormatSeconds(ElapsedTime)))
-        print "\nPress <Enter> to quit, type 'restart' to start over."
+        print("\nPress <Enter> to quit, type 'restart' to start over, 'help' for other options.")
       else:
         raise NotImplementedError \
           ("Don't know what to say in %r mode" % mode)
@@ -226,9 +227,9 @@ def Rehearse(argv):
             )
           continue
         # if help
-        CurrentTimer.pause()
-        print("Slide %d: %s"
-          % (CurrentPage, CurrentTimer.format_partial()))
+        totalTime += CurrentTimer.pause()
+        print("Slide %d: %s (%s so far)"
+          % (CurrentPage, CurrentTimer.format_partial(), FormatSeconds(totalTime)))
         if command == "stop":
           mode = "RehearsalEnd"
           continue
@@ -244,14 +245,17 @@ def Rehearse(argv):
         if command == "help":
           print("Available commands (excluding 'help'):"
            "\n restart : start a new rehearsal"
-           "\n ### : go to slide number ###")
+           "\n ### : go to slide number ###"
+           "\n up, down : move by one slide")
           continue
         # if help
         if command == "restart":
           mode = "GetReady"
           continue
         # if
-        if len(command) == 0: NewPage = CurrentPage + 1
+        if len(command) == 0 or command.lower() in [ "down", "next" ]:
+          NewPage = CurrentPage + 1
+        elif command.lower() in [ "up", "prev" ]: NewPage = CurrentPage - 1
         else:
           try: NewPage = int(command)
           except ValueError: break
@@ -259,17 +263,19 @@ def Rehearse(argv):
         if (NewPage > 0) and (NewPage <= TotalPages):
           CurrentPage = NewPage
       elif mode == "RehearsalEnd":
-        if len(command) == 0: break
         if command == "restart":
           mode = "GetReady"
           continue
         # if
-        try: 
-          NewPage = int(command)
-        except ValueError: break
-        if (NewPage > 0) and (NewPage <= TotalPages):
-          CurrentPage = NewPage
+        if len(command):
+          try: 
+            NewPage = int(command)
+          except ValueError: break
+          if (NewPage > 0) and (NewPage <= TotalPages):
+            CurrentPage = NewPage
+        # if
         mode = "Review"
+        continue
       else:
         raise NotImplementedError("Don't know what to do in %r mode" % mode)
       
