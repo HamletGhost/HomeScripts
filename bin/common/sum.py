@@ -161,6 +161,12 @@ if __name__ == "__main__":
     help="omits the column number in the output [default: only when needed]")
   
   argGroup = Parser.add_argument_group(title="Statistics output")
+  argGroup.add_argument("--count", "-n",
+    dest="Print", action="append_const", const="n",
+    help="prints the number of items in the input")
+  argGroup.add_argument("--weights", "-w",
+    dest="Print", action="append_const", const="weights",
+    help="prints the total weight of the input")
   argGroup.add_argument("--average", "-a",
     dest="Print", action="append_const", const="average",
     help="prints the average of the input")
