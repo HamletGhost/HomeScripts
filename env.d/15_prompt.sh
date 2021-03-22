@@ -64,6 +64,9 @@ else
         fi
 fi
 
+# debug prompt with file and line number
+shopt -s promptvars
+export PS4='+ ${BASH_SOURCE[0]}:${LINENO} '
 
 # Try to keep environment pollution down, EPA loves us.
 unset use_color safe_term match_lhs
