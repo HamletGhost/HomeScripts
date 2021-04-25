@@ -28,7 +28,7 @@ def findNewestKernelDir(
                 "\n".join(item[1].name for item in LinuxSourceDirs)
                 )
   
-  return LinuxSourceDirs[-1][1].name if LinuxSourceDirs else None
+  return LinuxSourceDirs[-1][1] if LinuxSourceDirs else None
   
 # findNewestKernelDir()
 
@@ -45,6 +45,9 @@ if __name__ == "__main__":
   Parser.set_defaults(basedir="/usr/src")
   
   Parser.add_argument("--basedir", help="kernel source base directory [%(default)s]")
+  Parser.add_argument("--fullpath", "-p", action="store_true",
+                      help="print full directory path instead of just its name"
+                      )
   
   Parser.add_argument("--verbose", "-v", action="store_true",
                       help="print more information on screen"
@@ -59,7 +62,7 @@ if __name__ == "__main__":
     logging.error("Could not find the newest Linux source directory.")
     sys.exit(1)
   
-  print(dirPath)
+  print(dirPath.path if args.fullpath else dirPath.name)
   sys.exit(0)
 # if
 
