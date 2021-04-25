@@ -34,7 +34,8 @@ Installs a new kernel.
 
 Usage:  $PROGRAMNAME  [options]
 
-This script copies the kernel in current kernel tree into boot directory.
+This script copies the kernel in current kernel tree or in the newest one
+into boot directory.
 
 Options:
 -s SUFFIX , --suffix=SUFFIX  ['${SUFFIX}']
@@ -257,7 +258,29 @@ fi
 KERNELDIR="$CWD"
 [[ -h "$CWD" ]] && KERNELDIR="$(readlink "$CWD")"
 
-KERNELDIRNAME="$(basename "$KERNELDIR")"
+if [[ ! "$KERNELDIRNAME" =~ ^linux ]]; then
+  # not in a Linux source directory already: let's pick the newest one if we can
+  
+  KERNELDIR=''
+  
+  findNewestKernel="$(which 'findNewestKernel.py' 2> /dev/null )"
+  if [[ $? == 0 ]]; then
+    
+    KERNELDIR="$( "$findNewestKernel" --fullpath )"
+    if [[ $? == 0 ]]; then
+      echo "Latest kernel source directory detected: '${KERNELDIR}'."
+    else
+      ERROR "Could not find the latest Linux kernel source."
+    fi
+    
+  else
+    ERROR "Script to detect the latest Linux kernel source not found."
+  fi
+  
+  KERNELDIRNAME="$(basename "$KERNELDIR")"
+
+fi
+
 UNAMER="${KERNELDIRNAME#linux-}"
 
 echo "New kernel: ${UNAMER}"
