@@ -3,6 +3,7 @@
 SCRIPTNAME="$(basename "$0")"
 
 declare Server='vpn.fnal.gov'
+declare Server='v-main-gcca-1-outside.fnal.gov'
 # declare VPNUser='petrillo@services.fnal.gov'
 declare VPNUser='petrillo'
 declare VPNGroup='SiteVPN-RSA'
@@ -10,7 +11,7 @@ declare PIDFile="/var/run/openconnect-${VPNUser}-${Server}.pid"
  
 declare -a ServerCerts=(
 #  'pin-sha256:YuGjyXELNTCeOF0K2dcBk6tBedNJNNHH34Yhb5u2eIo='
-#  'pin-sha256:xYUKRSEdpUFXNW+JubtPOTOqemN1CC8nmwEs8ym5z2g='
+  'pin-sha256:xYUKRSEdpUFXNW+JubtPOTOqemN1CC8nmwEs8ym5z2g='
   )
 
 # ==============================================================================
@@ -37,7 +38,7 @@ EOH
 
 
 # ==============================================================================
-declare -i DoHelp=0
+declare -i DoHelp=0 Verbose=0
 declare -i DoConnect=1 DoDisconnect=0
 declare -i NoMoreParameters=0
 for (( iParam = 1 ; iParam <= $# ; ++iParam )); do
@@ -46,6 +47,7 @@ for (( iParam = 1 ; iParam <= $# ; ++iParam )); do
     case "$Param" in
       ( '--close' | '--disconnect' | '-D' ) DoConnect=0 ; DoDisconnect=1 ;;
       ( '--reconnect' | '-C' )              DoConnect=1 ; DoDisconnect=1 ;;
+      ( '--verbose' | '--debug' | '-v' )    Verbose=1 ;;
       ( '--help' | '-h' | '-?' )            DoHelp=1 ;;
       ( * )
         echo "Unsupported option ('${Param}')." >&2
@@ -95,11 +97,16 @@ EOB
     ServerCertOpts+=( --servercert="$ServerCert" )
   done
 
-  sudo /usr/sbin/openconnect \
-    --background --pid-file="$PIDFile" \
-    --user="$VPNUser" ${VPNGroup:+--authgroup="$VPNGroup"} \
-    --setuid="$USER" \
-    "${ServerCerts[@]}" \
+  declare -a Cmd=( /usr/sbin/openconnect
+    --background --pid-file="$PIDFile"
+    "${ServerCertOpts[@]}"
+    --user="$VPNUser" ${VPNGroup:+--authgroup="$VPNGroup"}
+    --setuid="$USER"
     "$Server"
+    )
+
+  [[ "$Verbose" == 0 ]] || echo "CMD> ${Cmd[@]}"
+  sudo "${Cmd[@]}"
+
 fi
 
