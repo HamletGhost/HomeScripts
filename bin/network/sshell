@@ -34,13 +34,15 @@
 #   behaviour depending on that
 # 1.12 (20200303, petrillo@slac.stanford.edu)
 #   added Kerberos ticket forwarding (again?)
+# 1.13 (20210719, petrillo@slac.stanford.edu)
+#   added SOCKS mode
 #
 
 SCRIPTNAME="$(basename "$0")"
 SCRIPTDIR="$(dirname "$0")"
 CWD="$(pwd)"
 
-SCRIPTVERSION="1.12"
+SCRIPTVERSION="1.13"
 
 # program paths
 : ${kinit:="kinit"}
@@ -54,6 +56,8 @@ ssh_default_options=( '-X' )
 transfer_default_options=( '--verbose' '--archive' )
 
 declare -r DefaultBaseMountPoint="${HOME}/Volumes"
+declare -ir DefaultCompressComm="1"
+declare -ir DefaultSOCKS5port="1080"
 
 
 function help() {
@@ -79,6 +83,8 @@ function help() {
 	    mounts the remote directory into the specified one
 	--umount , -u , umount , u
 	    unmounts the remote directory previously mounted with the 'mount' mode
+	--socks , --proxy , -s , proxy , s
+	    opens a SOCKS5 proxy from \`localhost\` to the remote server, port ${SOCKSPORT}
 	--version , -V
 	    just prints the version numbre and exits
 	--help , -h , -?
@@ -318,6 +324,35 @@ function help_tunnel() {
 } # help_tunnel()
 
 
+function help_proxy() {
+	local CompressCommStr="not compressed"
+	isFlagSet DefaultCompressComm && CompressCommStr="compressed"
+	
+	cat <<-EOH
+	Mode: proxy
+	  ${SCRIPTNAME}  <--proxy|--socks|-s|proxy|s> [options]
+	
+	Opens a SOCKS5 proxy at the remote server, using OpenSSH dynamic port
+	forwarding feature.
+	
+	Proxy mode options:
+	--background
+	    detaches the SSH session: the shell will be available, but the tunnel will
+	    need to be closed manually
+	--compression , --nocompression  [${CompressCommStr}]
+	    use, or not, compression in SSH communication
+	--port=PORT ['${DefaultSOCKS5port}']
+	    use this port for the local binding
+	--localhost=host ['localhost']
+	    use this host for the local binding
+
+	In addition, the common options are accepted:
+
+	EOH
+	help_common
+} # help_proxy()
+
+
 function help_mount() {
 	cat <<-EOH
 	Mode: mount
@@ -381,6 +416,25 @@ function isFlagOver() {
 	local Threshold="${2:-"1"}"
 	[[ -n "${!VARNAME}" ]] && [[ "${!VARNAME}" -ge "$Threshold" ]]
 }
+
+function ifFlagSet() {
+	# ifFlagSet FLAGNAME TrueString [FalseString]
+	# 
+	# Prints <TrueString> if FLAGNAME is set, <FalseString> otherwise (which by
+	# default it is empty, in which case nothing is printed).
+	#
+	local -r FlagName="$1"
+	local -r TrueString="$2"
+	local -r FalseString="$3"
+	
+	if isFlagSet "$FlagName" ; then
+		echo "$TrueString"
+		true # for the return value
+	else
+		[[ $# -ge 3 ]] && echo "$FalseString"
+		false # for the return value
+	fi
+} # ifFlagSet()
 
 function STDERR() { echo "$*" >&2 ; }
 
@@ -822,13 +876,14 @@ function parse_options_help() {
 		DBGN 3 "  is '${Param}' a ${MODE} option?"
 
 		case "$Param" in
-			( '--help' | '-h' | '-?' ) HelpTopics=( "${HelpTopics[@]}" 'help' ) ;;
-			( '--version' | '-V' )     HelpTopics=( "${HelpTopics[@]}" 'version' ) ;;
-			( '--ssh' )                HelpTopics=( "${HelpTopics[@]}" 'ssh' ) ;;
-			( '--write' | '-w' | 'write' | 'w' ) HelpTopics=( "${HelpTopics[@]}" 'write' ) ;;
-			( '--read' | '-r' | 'read' | 'r' )   HelpTopics=( "${HelpTopics[@]}" 'read' ) ;;
-			( '--exec' | '-x' | 'exec' | 'x' ) HelpTopics=( "${HelpTopics[@]}" 'exec' ) ;;
-			( '--tunnel' | '-T' | 'tunnel' | 't' ) HelpTopics=( "${HelpTopics[@]}" 'tunnel' ) ;;
+			( '--help' | '-h' | '-?' ) HelpTopics+=( 'help' ) ;;
+			( '--version' | '-V' )     HelpTopics+=( 'version' ) ;;
+			( '--ssh' )                HelpTopics+=( 'ssh' ) ;;
+			( '--write' | '-w' | 'write' | 'w' ) HelpTopics+=( 'write' ) ;;
+			( '--read' | '-r' | 'read' | 'r' )   HelpTopics+=( 'read' ) ;;
+			( '--exec' | '-x' | 'exec' | 'x' ) HelpTopics+=( 'exec' ) ;;
+			( '--tunnel' | '-T' | 'tunnel' | 't' ) HelpTopics+=( 'tunnel' ) ;;
+			( '--proxy' | '--socks' | '-s' | 'proxy' | 's' ) HelpTopics+=( 'proxy' ) ;;
 
 			( * )
 				[[ "$MODE" == 'help' ]] && FATAL 1 "No help available on '${Param}'"
@@ -1014,6 +1069,52 @@ function parse_options_tunnel() {
 } # parse_options_tunnel()
 
 
+function init_parameters_proxy() {
+	DBGN 3 "Initializing default parameters for '${MODE}' mode"
+	
+	UseCompression="$DefaultCompressComm"
+	GoBackground=0
+	LocalPort="$DefaultSOCKS5port"
+	LocalHostBind='localhost'
+} # init_parameters_proxy()
+
+
+function parse_options_proxy() {
+
+	local -i iParam=$(( $1 - 1 ))
+	shift
+	local -i NDigested=0
+
+	while [[ $iParam -lt $# ]]; do
+		let ++iParam
+		local Param="${!iParam}"
+
+		DBGN 3 "  is '${Param}' a ${MODE} option?"
+
+		# by default, assume we swallow one parameter only
+		let ++NDigested
+
+		if [[ "${Param:0:1}" == '-' ]] && isFlagUnset NoMoreOptions ; then
+			case "$Param" in
+				( '--background' )   GoBackground=1 ;;
+				( '--compression' )  UseCompression=1 ;;
+				( '--nocompression') UseCompression=0 ;;
+				( '--port='* )       LocalPort="${Param#--*=}" ;;
+				( '--localhost='* )  LocalHostBind="${Param#--*=}" ;;
+				( * )
+					FATAL 1 "Invalid ${MODE} mode option '${Param}'."
+			esac
+		else
+			isFlagUnset NoMoreOptions && NoMoreOptions=1 && continue
+			Options=( "${Options[@]}" "$Param" )
+		fi
+
+		break
+	done
+	return $NDigested
+} # parse_options_proxy()
+
+
 function parse_options_mount() {
 
 	local -i iParam=$(( $1 - 1 ))
@@ -1195,6 +1296,7 @@ while [[ $iParam -lt $nParams ]]; do
 				( '--exec' | '-x' | 'exec' | 'x' )     SetOperationMode 'exec' ;;
 				( '--ping' | '-p' | 'ping' | 'p' )     SetOperationMode 'ping' ;;
 				( '--tunnel' | '-T' | 'tunnel' | 'T' ) SetOperationMode 'tunnel' ;;
+				( '--proxy' | '--socks' | '-s' | 'proxy' | 's' ) SetOperationMode 'proxy' ;;
 				( '--mount' | '-m' | 'mount' | 'm' )   SetOperationMode 'mount' ;;
 				( '--umount' | '-u' | 'umount' | 'u' ) SetOperationMode 'umount' ;;
 				( '--unmount' | 'unmount' )            SetOperationMode 'umount' ;;
@@ -1483,7 +1585,26 @@ case "$MODE" in
 		[[ "${#Command[@]}" == 0 ]] && TunnelOptions+=( '-N' ) && GoToBackground=1
 		isFlagSet GoToBackground && TunnelOptions+=( '-f' )
 		isIP6 "$TunnelTargetHost" || TunnelOptions+=( '-4' )
-		Execute $ssh -l "$RemoteUser" "${ssh_options[@]}" "${TunnelOptions[@]}" "$RemoteHostID" "${Command[@]}"
+		Execute $ssh -l "$RemoteUser" "${TunnelOptions[@]}" "$RemoteHostID" "${Command[@]}"
+		ExitCode=$?
+		;;
+
+	#############################################################################
+	( 'proxy' )
+		ProxyOptions=( '-D' "${LocalHostBind:+"${LocalHostBind}:"}${LocalPort}"
+		  '-N' # execute no command
+		  '-T' # no pseudo-terminal
+		  $(ifFlagSet UseCompression '-C')
+		  $(ifFlagSet GoBackground '-f')
+		  ${BackgroundOpt}
+		  '-o' 'ServerAliveInterval=30'
+		  '-o' 'ExitOnForwardFailure=yes'
+		  '-o' 'StrictHostKeyChecking=no'
+		  )
+		echo "Opening SOCKS5 proxy (port ${LocalPort}) to ${RemoteHostID}..."
+		Execute $ssh -l "$RemoteUser" "${ProxyOptions[@]}" "$RemoteHostID"
+		# some feedback... we don't know the PID of SSH unfortunately
+		[[ $ExitCode == 0 ]] && ifFlagSet GoBackground "Done."
 		ExitCode=$?
 		;;
 

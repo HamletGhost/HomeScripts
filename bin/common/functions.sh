@@ -50,6 +50,46 @@ function isFlagUnset() {
 	[[ -z "${!VarName//0}" ]]
 } # isFlagUnset()
 
+function ifFlagSet() {
+	# ifFlagSet FLAGNAME TrueString [FalseString]
+	# 
+	# Prints <TrueString> if FLAGNAME is set, <FalseString> otherwise (which by
+	# default it is empty, in which case nothing is printed).
+	#
+	local -r FlagName="$1"
+	local -r TrueString="$2"
+	local -r FalseString="$3"
+	
+	if isFlagSet "$FlagName" ; then
+		echo "$TrueString"
+		true # for the return value
+	else
+		[[ $# -ge 3 ]] && echo "$FalseString"
+		false # for the return value
+	fi
+} # ifFlagSet()
+
+function ifFlagUnset() {
+	# ifFlagUnset FLAGNAME TrueString [FalseString]
+	# 
+	# Prints <TrueString> if FLAGNAME is set, <FalseString> otherwise (which by
+	# default it is empty, in which case nothing is printed).
+	#
+	local -r FlagName="$1"
+	local -r TrueString="$2"
+	local -r FalseString="$3"
+	
+	if isFlagUnset "$FlagName" ; then
+		echo "$TrueString"
+		true # for the return value
+	else
+		[[ $# -ge 3 ]] && echo "$FalseString"
+		false # for the return value
+	fi
+} # ifFlagUnset()
+
+
+
 ###
 ###  basic utilities on lists
 ###
