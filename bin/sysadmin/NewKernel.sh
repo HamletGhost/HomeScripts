@@ -24,7 +24,7 @@
 PROGRAMNAME=`basename $0`
 CWD="$(pwd)"
 
-declare -a FLAGS=( 'FIRMWARE' 'COPYKERNEL' 'BOOTLOADER' 'INITRD' 'SELECTKERNEL' 'REBUILD' )
+declare -a FLAGS=( 'MODULES' 'COPYKERNEL' 'BOOTLOADER' 'INITRD' 'SELECTKERNEL' 'REBUILD' )
 
 
 function help() {
@@ -129,11 +129,12 @@ function MakeInitRAMFS() {
 	shift 2
 	
 	# look for the IWL firmware
-	local LatestIWLfw="$(ls -rt /lib64/firmware/iwl*.ucode 2> /dev/null | tail -n 1)"
-	[[ -r "$LatestIWLfw" ]] && echo "Including: '${LatestIWLfw}'"
+	local -a FirmwareBlobs=( )
+	# example (but it should check if the file actually exists):
+	# FirmwareBlobs+="$(ls -rt /lib64/firmware/iwl*.ucode 2> /dev/null | tail -n 1)"
 
 	# create the thing
-	local -a Cmd=( $DRACUT --force --lvmconf --hostonly ${LatestIWLfw:+--install "$LatestIWLfw"} "$DestPath" $UNAMER "$@" )
+	local -a Cmd=( $DRACUT --force --lvmconf --hostonly ${FirmwareBlobs[@]/#/--install } "$DestPath" $UNAMER --stdlog 5 "$@" )
 	echo "${Cmd[@]}"
 	local res
 	"${Cmd[@]}"
@@ -171,7 +172,7 @@ declare -a DoOnly
 
 declare -i NoMoreOptions=0
 declare -a Params
-declare -i NParams
+declare -i NParams=0
 
 for (( iParam = 1 ; iParam <= $# ; ++iParam )); do
 	Param="${!iParam}"
@@ -258,6 +259,7 @@ fi
 KERNELDIR="$CWD"
 [[ -h "$CWD" ]] && KERNELDIR="$(readlink "$CWD")"
 
+KERNELDIRNAME="$(basename "$KERNELDIR")"
 if [[ ! "$KERNELDIRNAME" =~ ^linux ]]; then
   # not in a Linux source directory already: let's pick the newest one if we can
   
@@ -310,7 +312,7 @@ else
 	KSUFFIX="$SUFFIX"
 fi
 
-[ -n "$SUFFIX" ] && KERNELDIR="${KERNELDIR}${SUFFIX}"
+[ -n "$SUFFIX" ] && KERNELDIR+="$SUFFIX"
 
 KERNELPATH="$KERNELDIR/arch/$ARCH/boot/$KERNELNAME"
 [ -r "$KERNELPATH" ] || FAIL 2 "Can't find kernel '$KERNELPATH'"
@@ -327,11 +329,11 @@ KERNELINSTALLPATH="${BOOTDIR}/${BOOTKERNELNAME}${KSUFFIX}"
 ###############################################################################
 ### firmware installation
 ### 
-if DoAction FIRMWARE ; then
-	echo "Reinstalling modules and firmware..."
-	make modules_install firmware_install
+if DoAction MODULES ; then
+	echo "Reinstalling modules..."
+	make modules_install
 else
-	echo "Skipping installation of firmware"
+	echo "Skipping installation of modules"
 fi
 
 ###############################################################################
