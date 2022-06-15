@@ -36,13 +36,17 @@
 #   added Kerberos ticket forwarding (again?)
 # 1.13 (20210719, petrillo@slac.stanford.edu)
 #   added SOCKS mode
+# 1.14 (20220308, petrillo@slac.stanford.edu)
+#   added VNC helper option
+# 1.15 (20220614, petrillo@slac.stanford.edu)
+#   added `--relative` option for copy
 #
 
 SCRIPTNAME="$(basename "$0")"
 SCRIPTDIR="$(dirname "$0")"
 CWD="$(pwd)"
 
-SCRIPTVERSION="1.13"
+SCRIPTVERSION="1.15"
 
 # program paths
 : ${kinit:="kinit"}
@@ -125,7 +129,7 @@ function help_common() {
 	    if specified, it is appended to the host name unless the latter already
 	    includes a domain
 	--ip=IP4ADDRESS
-	    after resolving the remote host IP, replaces the lowest IP4 bytes with
+# 	    after resolving the remote host IP, replaces the lowest IP4 bytes with
 	    the specified ones; for example, on a host resolving to 192.168.1.1,
 	    \`--ip=129.3\` will result in a target host IP of 192.168.129.3
 	--autohost[=ScriptName]
@@ -137,6 +141,10 @@ function help_common() {
 	    prepends PREFIX to the host name
 	--hostsuffix=SUFFIX
 	    appends SUFFIX to the host name
+	--sshopt=OPT
+	    uses the SSH option OPT, which should be a single word option
+	--sshfullopt="OPT value"
+	    uses the SSH option OPT passed as an \`-o\` argument
 
 	Kerberos authentication options (see \`man 1 kinit\` for details):
 	--k5realm=KRB5REALM
@@ -222,12 +230,57 @@ function help_read() {
 	    ssh lands (typically, user's home directory)
 	--dest=DESTDIR
 	    the directory in the local host where to copy the following sources
+	--relative , -r
+	    copies the files from the specified directory of the remote host to the
+	    same subdirectory in the local one; source (remote) directory may be
+	    absolute, in which case the exact same path is recreated in the local
+	    host, or relative, in which case it is assumed to come from the home
+	    directory in the remote host and it is replicated in the local home
+	    directory; the second form of the command, with \`destination\` argument,
+	    is not supported when this option is selected, and all arguments are
+	    interpreted as sources. If \`--dest\` is specified, it is prepended to the
+	    destination directory: if the value of this option is also relative,
+	    the latter is added under the local host home directory.
 
 	In addition, the common options are accepted:
 
 	EOH
 	help_common
 } # help_read()
+
+
+function help_ssh() {
+	cat <<-EOH
+	Mode: ssh
+	  ${SCRIPTNAME}  [--ssh|ssh] [options]
+	
+	Opens a SSH connection and executes a shell on the remote side.
+	This is the "standard" SSH mode.
+	All options and parameters that are not of this script are passed directly
+	as options to SSH, in the same order as they are specified.
+	
+	SSH mode options:
+	--vnc[=[LocalPort:]RemotePort]
+	    forwards the port LocalPort to the port RemotePort on the remote server;
+	    any connection on the local host at LocalPort will become a connection
+	    to \`localhost\` in the remote host. This parameter is tuned for VNC
+	    connections: RemotePort must be in the 5900-5999 range (default 5901).
+	    If less than 100, both port parameters are added 5900 (i.e. \`--vnc=10:1\`
+	    is equivalent to \`--vnc=5910:5901\`). If the local port is not specified,
+	    it is assigned the same value as \`RemotePort\`.
+	    To use the VNC X server on the remote side, DISPLAY must be set as:
+	    
+	    export DISPLAY='localhost:ShortRemotePort'
+	    
+	    (\`ShortRemotePort\` is the RemotePort minus 5900, i.e. between 1 and 99;
+	    The local side can access it opening a VNC viewer at LocalPort.
+
+	In addition, the common options are accepted:
+
+	EOH
+	help_common
+	
+} # help_ssh()
 
 
 function help_write() {
@@ -256,6 +309,18 @@ function help_write() {
 	    the directory under the remote host where to copy the following sources;
 	    if a relative path is specified, it is relative to the directory where
 	    ssh lands (typically, user's home directory)
+	--relative , -r
+	    copies the files from the specified directory of the local host to the
+	    same subdirectory in the remote one; source (local) directory may be
+	    absolute, in which case the exact same path is recreated in the local
+	    host, or relative, in which case it is expanded to absolute based on the
+	    current directory. If the source is in the local home directory, it will
+	    be replicated in the remote local directory. The second form of the
+	    command, with \`destination\` argument, is not supported when this option
+	    is selected, and all arguments are interpreted as sources. If \`--dest\`
+	    is specified, it is prepended to the destination directory: if the value
+	    of this option is relative, the latter is added under the remote host
+	    home directory.
 
 	In addition, the common options are accepted:
 
@@ -499,6 +564,38 @@ function isOSX() {
 
 function MSG() { isFlagSet QUIET || echo "$@" ; }
 
+function startsWithDir() {
+	# Usage:  startsWithDir Path BaseDir
+	local Path="$1"
+	local BaseDir="$2"
+	
+	[[ "$Path" == "$BaseDir" ]] || [[ "${Path#${BaseDir}/}" != "$Path" ]]
+	
+} # startsWithDir()
+
+function isAbsolutePath() { [[ "${1:0:1}" == '/' ]] ; }
+
+function makeAbsolutePath() {
+	local Path="$1"
+	local BaseDir="${2:-${CWD}}"
+	
+	if ! isAbsolutePath "$Path" ; then
+		# not fool-proof, better than nothing:
+		while true ; do
+			if startsWithDir "$Path" '.' ; then
+				Path="${Path:2}"
+			elif startsWithDir "$Path" '..' ; then
+				Path="${Path:3}"
+				BaseDir="$(dirname "$BaseDir")"
+			else
+				break
+			fi
+		done
+		Path="${BaseDir%/}/${Path}"
+	fi
+	echo "$Path"
+} # makeAbsolutePath()
+
 function FileFromDescriptor() {
 	# Prints the file associated to the descriptor
 	local -i Descriptor="$1"
@@ -597,7 +694,7 @@ function Execute() {
 
 	# print the command being run
 	if isFlagSet FAKE || isFlagSet VERBOSE || isDebugging ; then
-		echo "CMD: ${Command[@]} ${StdIn:+"0< '${StdIn}'"} ${StdOut:+"1> '${StdOut}'"} ${StdErr:+"2> '${StdErr}'"}"
+		echo "CMD:$(printf " '%s'" "${Command[@]}") ${StdIn:+"0< '${StdIn}'"} ${StdOut:+"1> '${StdOut}'"} ${StdErr:+"2> '${StdErr}'"}"
 	fi
 
 	# run the command
@@ -834,6 +931,7 @@ function parse_options_common() {
 			( "--domain="* )      RemoteDomain="${Param#--*=}" ;;
 			( "--ip="* )          IPOverride=( $(ParseIPoverride "${Param#--ip=}") ) ;;
 			( "--sshopt="* )      ssh_options=( "${ssh_options[@]}" "${Param#--*=}" ) ;;
+			( "--sshfullopt="* )  ssh_options=( "${ssh_options[@]}" '-o' "${Param#--*=}" ) ;;
 			( "--nodefopts="* )   NoDefaultSSHoptions=1 ;;
 			( "--autohost" )      AutoHost=( "${AutoHost[@]}" 'sshell' ) ;;
 			( "--autohost="* )    AutoHost=( "${AutoHost[@]}" "${Param#--*=}" ) ;;
@@ -898,15 +996,62 @@ function parse_options_help() {
 function parse_options_ssh() {
 	local -i iParam=$(( $1 - 1 ))
 	shift
+	local -i NDigested=0
 
-	local Param="${!iParam}"
+	local VNCPortSpec
+	local LocalVNCPort RemoteVNCPort
+	while [[ $iParam -lt $# ]]; do
+		let ++iParam
+		local Param="${!iParam}"
 
-	DBGN 3 "  is '${Param}' a ${MODE} option?"
+		DBGN 3 "  is '${Param}' a ${MODE} option?"
 
-	# accept all the options as SSH options
-	ssh_options=( "${ssh_options[@]}" "$Param" )
+		# by default, assume we swallow one parameter only
+		let ++NDigested
 
-	return 1
+		if [[ "${Param:0:1}" == '-' ]] && isFlagUnset NoMoreOptions ; then
+			case "$Param" in
+				( "--vnc" | "--vnc="* )
+					[[ "$Param" == '--vnc' ]] || VNCPortSpec="${Param#--*=}"
+					
+					RemoteVNCPort="${VNCPortSpec#*:}"
+					[[ "$VNCPortSpec" != "$RemoteVNCPort" ]] && LocalVNCPort="${VNCPortSpec%:${RemoteVNCPort}}"
+					
+					[[ -z "$RemoteVNCPort" ]] && RemoteVNCPort=1
+					[[ "$RemoteVNCPort" -le 0 ]] && FATAL 1 "Remote VNC port must be positive (${RemoteVNCPort} requested)."
+					[[ "$RemoteVNCPort" -lt 100 ]] && let RemoteVNCPort+=5900
+					[[ "$RemoteVNCPort" -le 5900 ]] && FATAL 1 "Remote VNC port can't be 5900 or smaller (${RemoteVNCPort} requested)."
+					[[ "$RemoteVNCPort" -ge 6000 ]] && FATAL 1 "Remote VNC port can't be 5600 or larger (${RemoteVNCPort} requested)."
+					
+					[[ -z "$LocalVNCPort" ]] && LocalVNCPort="$RemoteVNCPort"
+					[[ "$LocalVNCPort" -le 0 ]] && FATAL 1 "Local VNC port must be positive ($LocalVNCPort} requested)."
+					[[ "$LocalVNCPort" -lt 100 ]] && let LocalVNCPort+=5900
+					
+					
+					DBG "Forwarding local port ${LocalVNCPort} to remote ${RemoteVNCPort} [VNC]"
+					ssh_options+=( '-o' "LocalForward ${LocalVNCPort} localhost:${RemoteVNCPort}" )
+					;;
+				( "--src="* )
+					Destinations+=( "$CurrentDestination" )
+					Sources+=( "${Param#--*=}" )
+					;;
+				( "--opt="* )
+					DBG "Adding option: ${Param#--*=}"
+					TransferOptions+=( "${Param#--*=}" )
+					;;
+				( * )
+					# pass all unknown options through as SSH options
+					ssh_options+=( "$Param" )
+			esac
+		else
+			# pass all unknown positional parameters through as SSH options
+			ssh_options+=( "$Param" )
+		fi
+		
+		break
+	done
+	return $NDigested
+	
 } # parse_options_ssh()
 
 
@@ -915,7 +1060,7 @@ function parse_options_write() {
 	local -i iParam=$(( $1 - 1 ))
 	shift
 	local -i NDigested=0
-
+	
 	while [[ $iParam -lt $# ]]; do
 		let ++iParam
 		local Param="${!iParam}"
@@ -932,19 +1077,22 @@ function parse_options_write() {
 					: ${DefaultDestination:="$CurrentDestination"}
 					;;
 				( "--src="* )
-					Destinations=( "${Destinations[@]}" "$CurrentDestination" )
-					Sources=( "${Sources[@]}" "${Param#--*=}" )
+					Destinations+=( "$CurrentDestination" )
+					Sources+=( "${Param#--*=}" )
 					;;
 				( "--opt="* )
                DBG "Adding option: ${Param#--*=}"
-					TransferOptions=( "${TransferOptions[@]}" "${Param#--*=}" )
+					TransferOptions+=( "${Param#--*=}" )
+					;;
+				( "--relative" | "-r" )
+					RelativeCopy=1
 					;;
 				( * )
 					FATAL 1 "Invalid ${MODE} option '${Param}'."
 			esac
 		else
-			Destinations=( "${Destinations[@]}" "$CurrentDestination" )
-			Sources=( "${Sources[@]}" "$Param" )
+			Destinations+=( "$CurrentDestination" )
+			Sources+=( "$Param" )
 		fi
 
 		break
@@ -1509,7 +1657,48 @@ case "$MODE" in
 		# parameter is the destination for all the sources;
 		# if there is only one source, then assume the destination is the default
 		# directory SSH lands to
-		if [[ -z "$DefaultDestination" ]]; then
+		
+		if isFlagSet RelativeCopy ; then
+			
+			# all parameters are left as sources
+			
+			# if we are reading from remote we don't know the home directory in there
+			if [[ "$MODE" == 'read' ]]; then
+				SourceHome=''
+				DestHome="$HOME"
+			else 
+				SourceHome="$HOME"
+				DestHome=''
+			fi
+			
+			for (( iSource=0 ; iSource < $nSources; ++iSource )); do
+				
+				Source="${Sources[iSource]}"
+				DestSpec="${Destinations[iSource]}"
+				
+				DBGN 3 "Expanding source [$((iSource+1))/${nSources}] '${Source}' (destination: '${DestSpec}')"
+				
+				[[ "$MODE" == 'write' ]] && Source="$(makeAbsolutePath "$Source")"
+				
+				SourceName="$(basename "$Source")"
+				SourceDir="$(dirname "$Source")"
+				Dest="$SourceDir"
+				
+				# if the source starts with the home directory, we remove it and make it
+				# relative (that will trigger the correct treatment later)
+				if [[ -n "$SourceHome" ]] && startsWithDir "$SourceDir" "$SourceHome" ; then
+					Dest="${SourceDir:${#SourceHome}+1}"
+				fi
+				
+				[[ -n "$DestSpec" ]] && Dest="${DestSpec}${Dest:+"/${Dest}"}"
+				[[ -n "$DestHome" ]] && Dest="$(makeAbsolutePath "$Dest" "$DestHome")"
+				
+				Sources[iSource]="${SourceDir:+"${SourceDir}/"}${SourceName}"
+				Destinations[iSource]="$Dest"
+				DBGN 3 "  expanded source [$((iSource+1))/${nSources}]: '${Sources[iSource]}' => '${Destinations[iSource]}'"
+				
+			done
+		elif [[ -z "$DefaultDestination" ]]; then
 			if [[ $nSources -gt 1 ]]; then
 				let --nSources
 				DefaultDestination="${Sources[$nSources]}"
