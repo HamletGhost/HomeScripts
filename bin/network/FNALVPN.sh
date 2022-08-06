@@ -6,7 +6,7 @@ declare Server='vpn.fnal.gov'
 declare Server='v-main-gcca-1-outside.fnal.gov'
 # declare VPNUser='petrillo@services.fnal.gov'
 declare VPNUser='petrillo'
-declare VPNGroup='SiteVPN-RSA'
+declare VPNGroup='02_General-Users-RSA'
 declare PIDFile="/var/run/openconnect-${VPNUser}-${Server}.pid"
  
 declare -a ServerCerts=(
@@ -92,10 +92,7 @@ if [[ $DoConnect != 0 ]]; then
 Connection to VPN '${Server}' in progress...
 
 EOB
-  declare -a ServerCertOpts
-  for ServerCert in "${ServerCerts[@]}" ; do
-    ServerCertOpts+=( --servercert="$ServerCert" )
-  done
+  declare -a ServerCertOpts=( "${ServerCerts[@]/#/--servercert=}" )
 
   declare -a Cmd=( /usr/sbin/openconnect
     --background --pid-file="$PIDFile"
