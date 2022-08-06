@@ -1581,6 +1581,8 @@ if [[ -n "$AsRemoteUser" ]]; then
 	: ${KerberosUser:="$RemoteUser"}
 elif isFlagSet NoAsRemoteUser ; then
 	AsRemoteUser=''
+else
+	AsRemoteUser="$RemoteUser"
 fi
 
 declare RemoteFullPath="${AsRemoteUser:+${AsRemoteUser}@}${RemoteHostID}"
@@ -1678,7 +1680,8 @@ case "$MODE" in
 				
 				DBGN 3 "Expanding source [$((iSource+1))/${nSources}] '${Source}' (destination: '${DestSpec}')"
 				
-				[[ "$MODE" == 'write' ]] && Source="$(makeAbsolutePath "$Source")"
+				Source="$(makeAbsolutePath "$Source")"
+				[[ "$MODE" == 'read' ]] && startsWithDir "$Source" "$HOME" && Source="${Source#${HOME}}" && Source="${Source#\/}"
 				
 				SourceName="$(basename "$Source")"
 				SourceDir="$(dirname "$Source")"
