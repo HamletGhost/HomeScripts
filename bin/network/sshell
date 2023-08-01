@@ -88,7 +88,9 @@ function help() {
 	--umount , -u , umount , u
 	    unmounts the remote directory previously mounted with the 'mount' mode
 	--socks , --proxy , -s , proxy , s
-	    opens a SOCKS5 proxy from \`localhost\` to the remote server, port ${SOCKSPORT}
+	    opens a SOCKS5 proxy from \`localhost\` to the remote server, port ${DefaultSOCKS5port}
+	--tunnel , -T , tunnel , T
+	    opens a tunnel to the remote server accessed via the specified port
 	--version , -V
 	    just prints the version numbre and exits
 	--help , -h , -?
@@ -1166,7 +1168,7 @@ function parse_options_ping() {
 function init_parameters_tunnel() {
 	DBGN 3 "Initializing default parameters for '${MODE}' mode"
 
-	TunnelSpecPattern='^([0-9]+)(=>|->)(([^:]*):)?([0-9]+)$'
+	TunnelSpecPattern='^(([0-9]+)(=>|->))?(([^:]*):)?([0-9]+)$'
 
 	TunnelTargetSpecs=( )
 	GoToBackground=0
@@ -1761,16 +1763,16 @@ case "$MODE" in
 	#############################################################################
 	( 'tunnel' )
 		TunnelTargetHost='localhost' # default
-
+		
 		# parse target
 		[[ "${#TunnelTargetSpecs[@]}" -gt 0 ]] || FATAL 1 "No target of tunnel specified."
-
+		
 		declare -a Tunnels=()
 		for TunnelTargetSpec in "${TunnelTargetSpecs[@]}" ; do
 			[[ "$TunnelTargetSpec" =~ $TunnelSpecPattern ]] || FATAL 1 "Target specification '${TunnelTargetSpec}' not valid (format: \`localport=>[host:]port\`)."
-			TunnelTargetLocalPort="${BASH_REMATCH[1]}"
-			TunnelTargetHost="${BASH_REMATCH[4]}"
-			TunnelTargetPort="${BASH_REMATCH[5]}"
+			TunnelTargetHost="${BASH_REMATCH[5]:-"localhost"}"
+			TunnelTargetPort="${BASH_REMATCH[6]}"
+			TunnelTargetLocalPort="${BASH_REMATCH[2]:-"$TunnelTargetPort"}"
 			Tunnels+=( '-L' "${TunnelTargetLocalPort}:${TunnelTargetHost}:${TunnelTargetPort}" )
 		done
 		TunnelOptions=( "${Tunnels[@]}" -o 'ExitOnForwardFailure yes' -o 'TCPKeepAlive yes' -o 'ServerAliveInterval 15' )
