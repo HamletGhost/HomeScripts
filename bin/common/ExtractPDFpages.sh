@@ -20,7 +20,7 @@ function help() {
 	cat <<-EOH
 	Extracts the specified range of pages from a PDF file.
 
-	Usage:  ${SCRIPTNAME}  [options] SourceFile FirstPage[-[LastPage]]
+	Usage:  ${SCRIPTNAME}  [options] SourceFile FirstPage[-[LastPage]] [...]
 
 	If LastPage is not specified, only one page is extracted.
 
