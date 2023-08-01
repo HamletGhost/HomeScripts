@@ -5,9 +5,16 @@ SCRIPTDIR="$(dirname "$0")"
 
 : ${WIDTH:="$(sed -e 's/^diffy\([0-9]*\).sh$/\1/' <<< "$SCRIPTNAME" )"}
 
+function GetColumns() {
+	# `stty --all` produces an output like:
+	# speed 38400 baud; rows 78; columns 281; line = 0;
+	# intr = ^C; quit = ^\; erase = ^?; kill = ^U; eof = ^D; [...]
+	stty --all | tr ';' '\n' | grep 'columns' | awk '{ print $2 ; }'
+}
+
 [[ "$WIDTH" == "$SCRIPTNAME" ]] && WIDTH=""
 if [[ -z "$WIDTH" ]]; then
-	[[ -z "$COLUMNS" ]] && eval $(resize)
+	[[ -z "$COLUMNS" ]] && COLUMNS="$(GetColumns)"
 	WIDTH="$COLUMNS"
 fi
 
