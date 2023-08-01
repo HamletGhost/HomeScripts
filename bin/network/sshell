@@ -1756,7 +1756,7 @@ case "$MODE" in
 
 	#############################################################################
 	( 'exec' )
-		Execute $ssh -l "$RemoteUser" "${ssh_options[@]}" "$RemoteHostID" "${Command[@]}"
+		Execute $ssh ${AsRemoteUser:+-l "$AsRemoteUser"} "${ssh_options[@]}" "$RemoteHostID" "${Command[@]}"
 		ExitCode=$?
 		;;
 
