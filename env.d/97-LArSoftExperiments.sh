@@ -5,11 +5,13 @@ Setup -Q LArSoft
 function isExperiment() {
 	
 	local -ar ExperimentNames=( 'MicroBooNE' 'DUNE' 'SBND' 'LArIAT' 'ArgoNeuT' 'ICARUS' )
-	local -A IFDHExperiments
+	local -A IFDHExperiments ExperimentHostNames
 	local Name
 	for Name in "${ExperimentNames[@]}" ; do
 		IFDHExperiments[$Name]="${Name,,}"
+		ExperimentHostNames[$Name]="${Name,,}"
 	done
+	ExperimentHostNames['MicroBooNE']='uboone'
 	
 	local Option
 	local Format='Default'
@@ -37,18 +39,27 @@ function isExperiment() {
 	OPTIND=$OldOPTIND
 		
 	local Experiment
-	if [[ -d '/uboone' ]]; then
-		Experiment="MicroBooNE"
-	elif [[ -d '/dune' ]]; then
-		Experiment="DUNE"
-	elif [[ -d '/lariat' ]]; then
-		Experiment="LArIAT"
-	elif [[ -d '/lar1nd' ]] || [[ -d '/sbnd' ]] ; then
-		Experiment="SBND"
-	elif [[ -d '/icarus' ]]; then
-		Experiment="ICARUS"
-	elif [[ -d '/argoneut' ]]; then
-		Experiment="ArgoNeuT"
+	local ExperimentCandidate ExperimentHostName
+	local HostName="$(hostname)"
+	for ExperimentCandidate in "${!ExperimentHostNames[@]}" '' ; do
+		[[ "$HostName" =~ ^${ExperimentHostNames[$ExperimentCandidate]} ]] || continue
+		Experiment="$ExperimentCandidate"
+		break
+	done
+	if [[ -z "$Experiment" ]]; then
+		if [[ -d '/uboone' ]]; then
+			Experiment="MicroBooNE"
+		elif [[ -d '/dune' ]]; then
+			Experiment="DUNE"
+		elif [[ -d '/lariat' ]]; then
+			Experiment="LArIAT"
+		elif [[ -d '/lar1nd' ]] || [[ -d '/sbnd' ]] ; then
+			Experiment="SBND"
+		elif [[ -d '/icarus' ]]; then
+			Experiment="ICARUS"
+		elif [[ -d '/argoneut' ]]; then
+			Experiment="ArgoNeuT"
+		fi
 	fi
 	if [[ -z "$Experiment" ]]; then
 		ERROR "Can't detect the experiment."
@@ -64,6 +75,13 @@ function isExperiment() {
 
 
 function grid_proxy() {
+	if [[ "$1" != '-f' ]] && [[ "$1" != '--force' ]]; then
+		echo "Use \`getToken\` instead (or use --force as first argument to override)." >&2
+		return 1
+	else
+		shift
+	fi
+
 	local Experiment="${1:-$(isExperiment)}"
 	local Role="${2:-Analysis}"
 	local Server
@@ -83,30 +101,31 @@ function grid_proxy() {
 			Server="fermilab"
 			Command="/fermilab/uboone/Role=${Role}"
 			;;
-		( 'SBND' )
+		( 'SBND' | 'ICARUS' | 'SBN' )
 			###
-			### SBND setup
-			###
-			Server="fermilab"
-			Command="/fermilab/sbnd/Role=${Role}"
-			;;
-		( 'ICARUS' )
-			###
-			### ICARUS setup
+			### SBN/ICARUS/SBND setup
 			###
 			Server="fermilab"
-			Command="/fermilab/icarus/Role=${Role}"
+			Command="/fermilab/${Experiment,,}/Role=${Role}"
 			;;
 		( * )
 			echo "No grid certificate settings for experiment '${Experiment}'" >&2
 			return 1
 	esac
-	which cigetcert >& /dev/null || setup cigetcert
-	cigetcert -s 'fifebatch.fnal.gov' || return $?
+	which kx509 >& /dev/null || setup kx509
+	kx509 || return $?
 	echo "Requesting ${Experiment} certificate: ${Server}${Command:+":${Command}"}"
-	voms-proxy-init -noregen -rfc -voms "${Server}${Command:+":${Command}"}"
+	# valid: 120 hours 0 minutes
+	voms-proxy-init -noregen -valid 120:0 -rfc -voms "${Server}${Command:+":${Command}"}"
 } # grid_proxy()
 
+
+function getToken() {
+	local Experiment="${1:-$(isExperiment)}"
+	htgettoken -a 'htvaultprod.fnal.gov' -i "${Experiment,,}"
+} # getToken()
+
+
 unalias grid_proxy >& /dev/null
-export -f grid_proxy
+export -f grid_proxy getToken isExperiment
 

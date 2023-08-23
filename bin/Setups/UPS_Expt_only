@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+function DoSetupExperimentOnly() {
+  
+  local Experiment
+  Experiment="$(isExperiment)"
+  local -i res=$?
+  if [[ $res != 0 ]]; then
+    echo "Could not determine the experiment to set up!" >&2
+    return $res
+  fi
+  
+  # should we do direct lookup in SCRIPTDIR?
+  echo "Setup for experiment '${Experiment}' (no dependencies)"
+  Setup "UPS_${Experiment}_only"
+  res=$?
+  if [[ $res != 0 ]]; then
+    echo "Setup failed! (code: ${res})" >&2
+    return $res
+  fi
+  return $res
+
+} # DoSetupExperimentOnly()
+
+
+function DoSetupExperimentOnlyWrapper() {
+  DoSetupExperimentOnly "$@"
+  local res=$?
+  unset DoSetupExperimentOnly DoSetupExperimentOnlyWrapper
+  return $res
+}
+
+
+DoSetupExperimentOnlyWrapper "$@"
+
