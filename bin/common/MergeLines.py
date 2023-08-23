@@ -135,6 +135,9 @@ class Operation:
     # type check
   # __init__()
   
+  def __str__(self):
+    return f"{self.__class__.__name__} {self.params}"
+  
   def Reset(self): pass
   def Flush(self, nLines = None):
     Debug("Flushing (buffer has %d operands)", len(self.Operands), level=4)
@@ -206,7 +209,7 @@ class OpMergeLines(Operation):
     self.Reset()
   
   def __str__(self):
-    return "< N: %d, sep: %r >" % (self.params['N'], self.params['sep'])
+    return f"{self.__class__.__name__} < N: {self.params['N']}, sep: '{self.params['sep']}' >"
   
   @staticmethod
   def isSpecCompatible(spec):
@@ -272,7 +275,7 @@ class OpSkipLines(Operation):
   # __init__()
   
   def __str__(self):
-    return f"< N: {self.params['N']} >"
+    return f"{self.__class__.__name__} < N: {self.params['N']} >"
   
   @staticmethod
   def isSpecCompatible(spec):
@@ -289,8 +292,8 @@ class OpSkipLines(Operation):
   def CollectData(self, line):
     """Swallows every line."""
     Debug("Lines left: %d/%d", self.LinesLeft, self.params['N'], level=3)
-    if self.LinesLeft <= 0: return Operation.EnoughData
     self.LinesLeft -= 1
+    if self.LinesLeft <= 0: return Operation.EnoughData
     return Operation.NeedMore
   # CollectData()
   
@@ -517,14 +520,21 @@ def main():
             level=4)
           InputBuffer[0:0] = UnprocessedInput
         # if unprocessed lines are present
+        
+        # we skip to the next one
+        Debug("- moving to next operator", level=2)
+        CurrentOperation = next(OperIter)
+        break
       # if ... else
+      elif res == Operation.NotForMe:
+        Debug("  operator rejected the line; moving to next operator", level=3)
+        CurrentOperation = next(OperIter)
       
       # whether the selected operation had enough data or declined to operate,
-      # we skip to the next one
-      Debug("- trying next operator (%d)", (iOper+1), level=2)
-      CurrentOperation = next(OperIter)
     else:
+      Debug("- line was rejected by all operations!", level=1)
       break # no operation available for this line??
+      
   # while main loop
   if CurrentOperation is not None:
     CurrentOperation.PrintPartialResult(OutputFile)
