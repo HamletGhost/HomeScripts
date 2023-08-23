@@ -1,7 +1,12 @@
 #!/bin/bash
 
-SessionCfgPath="$1"
 FallbackTMux=( "${HOME}/local/bin/tmux" "$(which tmux 2> /dev/null)" )
+
+SessionCfgPath="$1"
+if [[ -z "$SessionCfgPath" ]]; then
+	Experiment="$(isExperiment 2> /dev/null)"
+	[[ $? == 0 ]] && [[ -n "$Experiment" ]] && SessionCfgPath="LArS_${Experiment}.conf"
+fi
 
 : ${tmuxConfigDir:="${HOME}/etc/tmux"}
 
@@ -22,7 +27,7 @@ if ! $tmux has-session -t "$SessionName" >& /dev/null ; then
 	
 	if [[ ! -r "$tmuxConfig" ]] ; then
 		echo "tmux configuration file '${tmuxConfig}' not found, a plain session will be created."
-		$tmux new-session -s "$SessionName"
+		$tmux new-session ${SessionName:+-s "$SessionName"}
 	elif $tmux ls >& /dev/null ; then
 		echo "Creating a session with configuration file: '${tmuxConfig}'"
 
@@ -42,5 +47,5 @@ else
 fi
 
 echo "Attaching to session '${SessionName}'"
-$tmux attach-session -d -t "$SessionName"
+$tmux attach-session -d ${SessionName:+-t "$SessionName"}
 
