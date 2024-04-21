@@ -64,23 +64,53 @@ function UncompressInput() {
 
 
 function ApplyFilters() {
-	declare -a Filters
+	local HeadLines="$1"
+	shift
+	local -a Filters=( "$@" )
 	if isFlagSet HeadLines ; then
 		DBGN 2 "Piping filter head on input..."
-		Filters=( "${Filters[@]}" ${Filters[*]:+"|"} head -n "$HeadLines" )
+		Filters+=( head -n "$HeadLines" )
 	fi
 	[[ ${#Filters[@]} == 0 ]] && Filters=( 'cat' )
-	DBGN 1 "Filtering input with: '${Filters[@]}'"
-	eval "${Filters[@]}"
+	local FilterString="$( printf '%s |' "${Filters[@]}" )"
+	FilterString="${FilterString% |}" # remove the last piping
+	DBGN 1 "Filtering input with: '${FilterString}'"
+	eval -- "$FilterString"
 } # ApplyFilters()
 
 
 function ProcessInput() {
 	local FileName="$1"
 	DBG "Processing input: '${FileName}'"
-	UncompressInput "$FileName" | ApplyFilters
+	UncompressInput "$FileName" | ApplyFilters "$HeadLines" "${InputFilters[@]}"
 } # ProcessInput()
 
+
+function PrintHelp() {
+	cat <<-EOH
+	Compares two files side by side.
+	
+	Usage:  ${SCRIPTNAME}  [options] firstFile secondFile
+	
+	Options:
+	--width=WIDTH [default: autodetect]
+	    sets the total length of the lines in the output.
+	--head=N
+	    only compares the first N lines of each file.
+	--filter="command"
+	    applies a filter to each file before comparing them. For example, to
+	    exclude all the lines that start with a "#" from the comparison, the
+	    option \`--filter="grep -v -E '#' "\` can be specified, and to exclude
+	    also the empty lines a second filter \`--filter="grep -v -E '^$'\`can
+	    follow. Note that the quotation of these filter commands is not trivial.
+	    These filters are run via Bash command \`eval\`.
+	--debug[=LEVEL]
+	    enables debug messages up to LEVEL, included. If LEVEL is omitted, it's
+	    set to 1.
+	--help, -h, -?
+	    prints this message and exits.
+	EOH
+}
 
 declare -i DEBUG
 declare -i nOptions=0
@@ -88,6 +118,7 @@ declare -a Options
 declare -i HeadLines=0
 declare -i nInputs=0
 declare -a Inputs
+declare -a InputFilters
 declare -i NoMoreOptions=0
 for (( iParam = 1 ; iParam <= $# ; ++iParam )); do
 	Param="${!iParam}"
@@ -98,8 +129,10 @@ for (( iParam = 1 ; iParam <= $# ; ++iParam )); do
 		case "$Param" in
 			( '--width='* ) WIDTH="${Param#--*=}" ;;
 			( '--head='* )  HeadLines="${Param#--*=}" ;;
+			( '--filter='* ) InputFilters+=( "${Param#--filter=}" ) ;;
 			( '--debug='* ) DEBUG="${Param#--*=}" ;;
 			( '--debug' )   DEBUG=1 ;;
+			( '--help' | '-h' | '-?' ) DoHelp=1 ;;
 			( '-' | '--' )
 				NoMoreOptions=1
 				;;& # continue toward the default pattern
@@ -108,6 +141,12 @@ for (( iParam = 1 ; iParam <= $# ; ++iParam )); do
 		esac
 	fi
 done
+
+export DEBUG
+if isFlagSet DoHelp ; then
+	PrintHelp
+	exit 0
+fi
 
 [[ $nInputs == 2 ]] || FATAL 1 "Exactly two input files must be specified -- found ${nInputs}."
 
