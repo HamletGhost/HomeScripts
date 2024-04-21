@@ -4,7 +4,6 @@
 ###  local variables  #########################################################
 : ${ARCH="x86_64"}
 : ${KSOURCEDIR:="/usr/src/linux"}
-: ${KERNELDIR:="${KSOURCEDIR}/arch/${ARCH}/boot"}
 : ${KERNELNAME:="bzImage"}
 : ${SYSTEMNAME:="Gentoo"}
 : ${BOOTDEV:="/boot"}
@@ -256,21 +255,22 @@ fi
 ###############################################################################
 ### extract kernel version
 ### 
-KERNELDIR="$CWD"
-[[ -h "$CWD" ]] && KERNELDIR="$(readlink "$CWD")"
+KERNELBASEDIR="$CWD"
+[[ -h "$CWD" ]] && KERNELBASEDIR="$(readlink "$CWD")"
+KERNELDIRNAME="$(basename "$KERNELBASEDIR")"
 
 KERNELDIRNAME="$(basename "$KERNELDIR")"
 if [[ ! "$KERNELDIRNAME" =~ ^linux ]]; then
   # not in a Linux source directory already: let's pick the newest one if we can
   
-  KERNELDIR=''
+  KERNELBASEDIR=''
   
   findNewestKernel="$(which 'findNewestKernel.py' 2> /dev/null )"
   if [[ $? == 0 ]]; then
     
-    KERNELDIR="$( "$findNewestKernel" --fullpath )"
+    KERNELBASEDIR="$( "$findNewestKernel" --fullpath )"
     if [[ $? == 0 ]]; then
-      echo "Latest kernel source directory detected: '${KERNELDIR}'."
+      echo "Latest kernel source directory detected: '${KERNELBASEDIR}'."
     else
       ERROR "Could not find the latest Linux kernel source."
     fi
@@ -279,7 +279,7 @@ if [[ ! "$KERNELDIRNAME" =~ ^linux ]]; then
     ERROR "Script to detect the latest Linux kernel source not found."
   fi
   
-  KERNELDIRNAME="$(basename "$KERNELDIR")"
+  KERNELDIRNAME="$(basename "$KERNELBASEDIR")"
 
 fi
 
@@ -329,9 +329,9 @@ KERNELINSTALLPATH="${BOOTDIR}/${BOOTKERNELNAME}${KSUFFIX}"
 ###############################################################################
 ### firmware installation
 ### 
-if DoAction MODULES ; then
-	echo "Reinstalling modules..."
-	make modules_install
+if DoAction FIRMWARE ; then
+	echo "Reinstalling modules and firmware..."
+	make -C "$KERNELDIR" modules_install firmware_install
 else
 	echo "Skipping installation of modules"
 fi

@@ -3,10 +3,12 @@
 declare Cwd="$(pwd)"
 
 declare -r BaseKernelDir="/usr/src"
-declare -r CurrentKernelDir="${BaseKernelDir}/linux"
+declare -r CurrentKernelDirName="${1:-"linux"}"
 declare -r ConfigFileName=".config"
 declare -r KernelDirCheckFile="Kconfig"
 
+declare CurrentKernelDir="$CurrentKernelDirName"
+[[ "${CurrentKernelDirName:0:1}" != '/' ]] && CurrentKernelDir="${BaseKernelDir}/${CurrentKernelDir}"
 declare -r CurrentKernelConfig="${CurrentKernelDir}/${ConfigFileName}"
 
 declare -ir NCores="$(grep -c -E '^processor[[:blank:]]*:' /proc/cpuinfo)"
