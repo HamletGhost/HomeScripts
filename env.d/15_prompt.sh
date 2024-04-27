@@ -49,6 +49,8 @@ else
         fi
 fi
 
+[[ -n "$SINGULARITY_NAME" ]] && PS1='\[\033[00;36m\]'"[${SINGULARITY_NAME}]"'\[\033[00m\]'" ${PS1}"
+
 # debug prompt with file and line number
 shopt -s promptvars
 export PS4='+ ${BASH_SOURCE[0]:-"<?>"}:${LINENO} '
