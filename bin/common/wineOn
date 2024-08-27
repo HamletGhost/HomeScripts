@@ -20,6 +20,16 @@ declare Program="$1"
 shift
 declare -a ProgramOptions=( "$@" )
 
+if [[ -z "$PrefixName" ]]; then
+  cat <<EOH
+Runs the specified program in the specified WINE area (under '${PrefixBase}').
+
+Usage:  $(basename "${BASH_SOURCE[0]}") PrefixName ProgramPath [and options ...]
+
+EOH
+  exit 1
+fi
+
 declare PrefixPath="${PrefixBase%/}/${PrefixName}"
 
 echo "Starting '${Program}' in '${PrefixName}' Wine area ('${PrefixPath}')"
