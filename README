@@ -1,1 +1,15 @@
 These are just my personal scripts, good enough to be shared between computers.
+They are based on Bash 4 (or newer).
+
+Setup
+======
+
+Several manual steps are needed to install the scripts into a new home directory.
+In the following, we assume for convenience the `GITREPO` environment variable to point to the GIT repository where this `README` file is also stored.
+
+1. Create a directory `${HOME}/bin` and within it link to the relevant script directories under `bin/` in the repository (e.g. `ln -s "${GITREPO}/bin/common" "${HOME}/bin/"`).
+    * recommended: `env` (strongly so), `Setups`, `common`
+2. Create a directory `${HOME}/env.d` and link all the desired startup scripts therein
+    * suggested: `ln -s ${GITREPO}/env.d/* ${HOME}/env.d/`, then remove all the unwanted scripts.
+3. Edit `.bashrc` to load the environment scripts by including the line `[[ "${HOME}/bin/env/env.sh" ]] && source "${HOME}/bin/env/env.sh"`.
+4. _[recommended]_ Edit `.bash_profile` in `$HOME` to point to `.bashrc`, or copy the `.bash_profile` from the repository into the home directory.
