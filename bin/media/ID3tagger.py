@@ -13,6 +13,8 @@
 #   python 3; changed format of --genres
 # 20170408 [v1.3]
 #   added --pause option
+# 20240605 [v1.4]
+#   added pattern-based parsing and renaming
 #
 
 __doc__ = """Creates a script assigning ID3 tags to MP3 files.
@@ -26,6 +28,10 @@ The valid keys are:
 - track (also: trackno): standard ID3 key, with value in the form of a single
     number representing the track number, or two numbers "#/#", where the
     second one represents the total number of tracks
+- filepattern: assigns patterns from the file name
+- titlepattern: assigns patterns from the title
+- rename (also: newname): changes the name of the file to the specified name
+  (replacing tags)
 - any other key is added in the "comments" ID3 tag
 
 Track number and total number are always assigned. If they are not specified,
@@ -37,8 +43,22 @@ file name (that is, the "file:" key is to be considered optional).
 
 The file path element must be the first one of the block of metadata pertaining
 that file.
+
+The file and title patterns are regular expressions applied to the file basename
+(including suffix) and to the title string. Each time a pattern is specified but
+does not match the string it's applied on, a warning is printed. Otherwise, tags
+are defined: {f0}, {f1}, {f2}, etc. are the expression and all subexpressions
+matching the file pattern, and likewise {t0}, {t1} etc. represent the
+subexpressions matched by the title pattern.
+The replacement is performed via `str.format()`.
+Currently, only the rename field supports these tags.
+
+The rename key will change the name of the underlying file to the one specified
+by the rename value. The value is subject to tag replacement (see the paragraph
+above). If the target name is already used by another file, the program will
+immediately interrupt with an error.
 """
-__version__ = "1.2"
+__version__ = "1.4"
 
 
 import sys
@@ -48,6 +68,7 @@ import logging
 import copy
 import math
 import re
+import shlex
 
 
 class EmptyObject: pass
@@ -253,23 +274,23 @@ class BashQuoterClass:
    def isSimpleWord(s): return BashQuoterClass.NonSimpleWord.search(s) is None
       
    @staticmethod
-   def Quote(s):
-      # might do it nicer...
-      if BashQuoterClass.isSimpleWord(s): return s;
-      return "'%s'" % s.replace("'", "'\\''")
-   # Quote()
+   def Quote(s): return shlex.quote(s)
    
    @staticmethod
-   def QuoteList(l):
-      return [ BashQuoterClass.Quote(s) for s in l ]
-   # QuoteList()
+   def QuoteList(l): return [ BashQuoterClass.Quote(s) for s in l ]
+   
+   @staticmethod
+   def QuoteWords(*words): return BashQuoterClass.QuoteList(words)
 
 # class BashQuoterClass
 
 
 class ProcessorClass:
    def __init__(self, options = None):
-      self.state = { }
+      self.state = {
+         'FilePattern': re.compile('.*'),
+         'TitlePattern': re.compile('.*'),
+      }
       self.output = []
       self.commentKeys = set()
       self.baseDirectory = ''
@@ -323,6 +344,9 @@ class ProcessorClass:
            ( 'Title', 'title' ),
            ( 'TrackNo', ( 'track', 'trackno' ) ),
            ( 'NTracks', ( 'ntracks', 'tracks' ) ),
+           ( 'FilePattern', ( 'filepattern', ) ),
+           ( 'TitlePattern', ( 'titlepattern', ) ),
+           ( 'Rename', ( 'rename', 'newname' ) ),
            ):
             
             if isinstance(labels, str): labels = ( labels, )
@@ -330,7 +354,11 @@ class ProcessorClass:
                if key == label.lower(): break
             else: continue
             
-            self.state[keyword] = value
+            try:
+               self.state[keyword] = re.compile(value) if keyword.endswith('Pattern') else value
+            except re.error as e:
+               raise RuntimeError(f"Error in the regular expression for '{keyword}'"
+                 f"of '{self.state.get('InputFile', '<starting file>')}' ('{value}'): {e}") from e
             break
          else: # a comment?
             self.state.setdefault('Comments', []).append("%s:%s" % (key, value))
@@ -353,11 +381,43 @@ class ProcessorClass:
    # ValidateComment()
    
    
+   def ExtractTags(self, item) -> "a dictionary with all supported tags":
+      patternTags = {}
+      for PatternName, PatternTarget, TagPrefix in (
+        ( 'FilePattern', 'InputFile', 'f' ),
+        ( 'TitlePattern', 'Title', 't' ),
+      ):
+         pattern = item.get(PatternName, None)
+         if not pattern: continue
+         try: s = item[PatternTarget]
+         except KeyError: continue
+         match = pattern.search(s)
+         if not match:
+            logging.warning(
+               "%s '%s' did not match the pattern '%s': tags '%s*' won't be available.",
+               PatternTarget, s, PatternName, TagPrefix,
+               )
+            continue
+         # if not match
+         
+         # add all indexed matches and also the named ones
+         patternTags.update({ (TagPrefix + str(i)): match.group(i) for i in range(len(match.groups()) + 1) })
+         patternTags[TagPrefix] = patternTags[TagPrefix + '0']
+         patternTags.update(match.groupdict())
+      # for patterns
+      return patternTags
+   # ExtractTags()
+   
+   
    def OutputElement(self, item, iElem, nElem):
       try:
          InputFile = item['InputFile']
       except KeyError:
          raise RuntimeError("No file specified for item %d!", iElem)
+      
+      tagValues = self.ExtractTags(item)
+      
+      cmds = []
       
       cmd = [ "id3v2" ]
       
@@ -389,11 +449,30 @@ class ProcessorClass:
       
       for comment in item.get('Comments', []):
          self.ValidateComment(comment)
-         cmd.append(( '--comment', comment, ))
+         cmd.extend(( '--comment', comment, ))
       # for
       
       cmd.append(InputFile)
-      return cmd
+      cmds.append(BashQuoterClass.QuoteList(cmd))
+      
+      if 'Rename' in item:
+         try:
+            NewName = item['Rename'].format(**tagValues)
+         except KeyError as e:
+            logging.error(
+               "Tag '%s' is not available; '%s' won't be renamed. Available patterns:\n%s",
+               str(e), InputFile, "\n".join(f" - '{t}' ('{v}')" for t, v in tagValues.items()),
+               )
+         else:
+            # attempt to overwrite is failure
+            cmds.append(
+               BashQuoterClass.QuoteWords
+                 ( 'mv', '-v', '--update=none-fail', InputFile, NewName)
+                 + [ '||', 'exit', '$?' ]
+               )
+      # if rename request
+      
+      return cmds
       
    # OutputElement()
    
@@ -417,7 +496,7 @@ class ProcessorClass:
             raise RuntimeError("No file specified for item %d!", iItem)
          if (iItem > 0) and (self.pause > 0.0):
             cmd = ( 'sleep', str(self.pause), )
-            print(" ".join(BashQuoterClass.QuoteList(cmd)), file=OutputFile)
+            print(" ".join(cmd), file=OutputFile)
          # if
          
          cmd = (
@@ -426,8 +505,10 @@ class ProcessorClass:
          )
          print(" ".join(BashQuoterClass.QuoteList(cmd)), file=OutputFile)
          
-         cmd = self.OutputElement(item, iItem, nItems)
-         print(" ".join(BashQuoterClass.QuoteList(cmd)), file=OutputFile)
+         cmds = self.OutputElement(item, iItem, nItems)
+         for cmd in cmds:
+            print(" ".join(cmd), file=OutputFile)
+         
       # for
       cmd = [ 'echo', "Done." ]
       
@@ -471,7 +552,7 @@ if __name__ == "__main__":
    parser.add_argument('--genres', action='store_true', dest='ListGenres',
      help="List all supported genres")
    parser.add_argument('--pause', action='store', dest='PauseTime', type=float,
-     help="waits for this number of seconds after each tagging [%(default)f]",
+     help="waits for this number of seconds after each tagging [%(default]",
      default=0.0)
    parser.add_argument('--version', action='version',
      version='%(prog)s v' + __version__)
