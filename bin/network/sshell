@@ -40,13 +40,15 @@
 #   added VNC helper option
 # 1.15 (20220614, petrillo@slac.stanford.edu)
 #   added `--relative` option for copy
+# 1.16 (20240805, petrillo@slac.stanford.edu)
+#   added `--opt` documentation
 #
 
 SCRIPTNAME="$(basename "$0")"
 SCRIPTDIR="$(dirname "$0")"
 CWD="$(pwd)"
 
-SCRIPTVERSION="1.15"
+SCRIPTVERSION="1.16"
 
 # program paths
 : ${kinit:="kinit"}
@@ -243,6 +245,9 @@ function help_read() {
 	    interpreted as sources. If \`--dest\` is specified, it is prepended to the
 	    destination directory: if the value of this option is also relative,
 	    the latter is added under the local host home directory.
+	--opt=OPTION
+	    the specified option is passed to the copy command (not the connection
+	    one; that is, to \`rsync\` rather than to \`ssh\`)
 
 	In addition, the common options are accepted:
 
@@ -1083,7 +1088,7 @@ function parse_options_write() {
 					Sources+=( "${Param#--*=}" )
 					;;
 				( "--opt="* )
-               DBG "Adding option: ${Param#--*=}"
+					DBG "Adding option: ${Param#--*=}"
 					TransferOptions+=( "${Param#--*=}" )
 					;;
 				( "--relative" | "-r" )
