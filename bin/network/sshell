@@ -145,6 +145,9 @@ function help_common() {
 	    prepends PREFIX to the host name
 	--hostsuffix=SUFFIX
 	    appends SUFFIX to the host name
+	--jump=[USER@]NODE , --hop=[USER@]NODE
+	    uses the specified server to reach the destination; if specified multiple
+	    times, it will set jumps in sequence
 	--sshopt=OPT
 	    uses the SSH option OPT, which should be a single word option
 	--sshfullopt="OPT value"
@@ -603,6 +606,21 @@ function makeAbsolutePath() {
 	echo "$Path"
 } # makeAbsolutePath()
 
+
+function JoinStrings() {
+	# JoinStrings  Sep [string] [...]
+	
+	local Sep="$1"
+	shift
+	local -i NJumps="$#"
+	[[ $NJumps == 0 ]] && echo "" && return
+	printf "$1"
+	shift
+	[[ $NJumps -gt 1 ]] && printf "${Sep}%s" "$@"
+	return 0
+} # JoinStrings()
+
+
 function FileFromDescriptor() {
 	# Prints the file associated to the descriptor
 	local -i Descriptor="$1"
@@ -937,13 +955,15 @@ function parse_options_common() {
 			                      RemoteHost="${Param#--*=}" ;;
 			( "--domain="* )      RemoteDomain="${Param#--*=}" ;;
 			( "--ip="* )          IPOverride=( $(ParseIPoverride "${Param#--ip=}") ) ;;
-			( "--sshopt="* )      ssh_options=( "${ssh_options[@]}" "${Param#--*=}" ) ;;
-			( "--sshfullopt="* )  ssh_options=( "${ssh_options[@]}" '-o' "${Param#--*=}" ) ;;
+			( "--sshopt="* )      ssh_options+=( "${Param#--*=}" ) ;;
+			( "--sshfullopt="* )  ssh_options+=( '-o' "${Param#--*=}" ) ;;
 			( "--nodefopts="* )   NoDefaultSSHoptions=1 ;;
-			( "--autohost" )      AutoHost=( "${AutoHost[@]}" 'sshell' ) ;;
-			( "--autohost="* )    AutoHost=( "${AutoHost[@]}" "${Param#--*=}" ) ;;
+			( "--autohost" )      AutoHost+=( 'sshell' ) ;;
+			( "--autohost="* )    AutoHost+=( "${Param#--*=}" ) ;;
 			( "--hostprefix="* )  RemoteHostPrefix="${Param#--*=}" ;;
 			( "--hostsuffix="* )  RemoteHostSuffix="${Param#--*=}" ;;
+			( "--jump="* | '--hop=*' )
+			                      SSHjumps+=( "${Param#--*=}" ) ;;
 
 			# Kerberos options
 			( "--k5realm="* )     KerberosRealm="${Param#--*=}" ;;
@@ -1413,6 +1433,7 @@ declare -i DEBUG=0 QUIET=0 VERBOSE=0 FAKE=0
 declare RemoteUser="$USER" RemoteHost='' RemoteDomain=''
 declare RemoteHostPrefix='' RemoteHostSuffix=''
 declare -a AutoHost
+declare -a SSHjumps
 declare -i NoDefaultSSHoptions=0
 
 declare KerberosRealm='' KerberosUser="" KerberosInstance=''
@@ -1490,6 +1511,9 @@ while [[ $iParam -lt $nParams ]]; do
 	fi
 
 done
+
+
+[[ ${#SSHjumps[@]} -gt 0 ]] && ssh_options+=( "-J$(JoinStrings ',' "${SSHjumps[@]}")" )
 
 isFlagSet NoDefaultSSHoptions || ssh_options=( "${ssh_default_options[@]}" "${ssh_options[@]}" )
 nSources="${#Sources[@]}"
