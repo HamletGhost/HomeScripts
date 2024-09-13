@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+# sourcing is important to have the script name propagated
+HostIP="$(resolveip --silent "$(basename "$0")" )"
+source sshlz --user='caen' --host="$HostIP" "$@"
+

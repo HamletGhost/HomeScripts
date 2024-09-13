@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+# sourcing is important to have the script name propagated
+source sshlacPN --jump='petrillo@lz-ignition.slac.stanford.edu' "$@"
+
