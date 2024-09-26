@@ -370,6 +370,7 @@ function help_ping() {
 	The common options are accepted:
 
 	EOH
+	help_common
 } # help_ping()
 
 
@@ -396,6 +397,7 @@ function help_tunnel() {
 	The common options are accepted:
 
 	EOH
+	help_common
 } # help_tunnel()
 
 
@@ -453,6 +455,7 @@ function help_mount() {
 	The common options are accepted:
 
 	EOH
+	help_common
 } # help_mount()
 
 
@@ -473,6 +476,7 @@ function help_umount() {
 	The common options are accepted (most are just ignored):
 
 	EOH
+	help_common
 } # help_umount()
 
 
@@ -1808,7 +1812,7 @@ case "$MODE" in
 		[[ "${#Command[@]}" == 0 ]] && TunnelOptions+=( '-N' ) && GoToBackground=1
 		isFlagSet GoToBackground && TunnelOptions+=( '-f' )
 		isIP6 "$TunnelTargetHost" || TunnelOptions+=( '-4' )
-		Execute $ssh -l "$RemoteUser" "${TunnelOptions[@]}" "$RemoteHostID" "${Command[@]}"
+		Execute $ssh -l "$RemoteUser" "${ssh_options[@]}" "${TunnelOptions[@]}" "$RemoteHostID" "${Command[@]}"
 		ExitCode=$?
 		;;
 
