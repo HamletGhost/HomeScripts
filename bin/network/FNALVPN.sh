@@ -38,6 +38,55 @@ EOH
 
 
 # ==============================================================================
+function connectToVPN() {
+  
+  cat <<EOB
+
+Connection to VPN '${Server}' in progress...
+
+EOB
+  declare -a ServerCertOpts=( "${ServerCerts[@]/#/--servercert=}" )
+
+  declare -a Cmd=( /usr/sbin/openconnect
+    --background --pid-file="$PIDFile"
+    "${ServerCertOpts[@]}"
+    --user="$VPNUser" ${VPNGroup:+--authgroup="$VPNGroup"}
+    --setuid="$USER"
+    "$Server"
+    )
+
+  [[ "$Verbose" == 0 ]] || echo "CMD> ${Cmd[@]}"
+  sudo "${Cmd[@]}"
+  
+} # connectToVPN()
+
+
+function disconnectFromVPN() {
+
+  if [[ ! -s "$PIDFile" ]]; then
+    echo "No VPN connection ongoing (according to the absence of '${PIDFile}')."
+    return 1
+  fi
+  
+  cat <<EOB
+
+Disconnection to VPN '${Server}' in progress...
+
+EOB
+  
+  sudo pkill --pidfile "$PIDFile"
+  sudo rm -f "$PIDFile"
+  
+  # if active, restart the DNS service (or it may be left in a borked state)
+  if systemctl --quiet is-active 'systemd-resolved.service' ; then
+    echo "Restarting DNS..."
+    sudo systemctl restart 'systemd-resolved.service'
+  fi
+  
+  return 0
+}
+
+# ==============================================================================
 declare -i DoHelp=0 Verbose=0
 declare -i DoConnect=1 DoDisconnect=0
 declare -i NoMoreParameters=0
@@ -69,41 +118,10 @@ fi
 
 # ------------------------------------------------------------------------------
 if [[ "$DoDisconnect" != 0 ]]; then
-  
-  if [[ ! -s "$PIDFile" ]]; then
-    echo "No VPN connection ongoing (according to the absence of '${PIDFile}')."
-    exit
-  fi
-  
-  cat <<EOB
-
-Disconnection to VPN '${Server}' in progress...
-
-EOB
-  
-  sudo pkill --pidfile "$PIDFile"
-  sudo rm -f "$PIDFile"
-  
+  disconnectFromVPN || exit $?
 fi
 
 if [[ $DoConnect != 0 ]]; then
-  cat <<EOB
-
-Connection to VPN '${Server}' in progress...
-
-EOB
-  declare -a ServerCertOpts=( "${ServerCerts[@]/#/--servercert=}" )
-
-  declare -a Cmd=( /usr/sbin/openconnect
-    --background --pid-file="$PIDFile"
-    "${ServerCertOpts[@]}"
-    --user="$VPNUser" ${VPNGroup:+--authgroup="$VPNGroup"}
-    --setuid="$USER"
-    "$Server"
-    )
-
-  [[ "$Verbose" == 0 ]] || echo "CMD> ${Cmd[@]}"
-  sudo "${Cmd[@]}"
-
+  connectToVPN
 fi
 
