@@ -1,0 +1,421 @@
+#
+# User XCompose file
+#
+
+# include locale compose file from the system:
+include "%L"
+
+#
+# greek letters
+#
+
+# Let's try with <Multi_key> + <g>...
+#
+<Multi_key> <g> <A>         : "Α"   U0391 # GREEK CAPITAL LETTER ALPHA
+<Multi_key> <g> <a>         : "α"   U03B1 # GREEK SMALL LETTER ALPHA
+<Multi_key> <g> <B>         : "Β"   U0392 # GREEK CAPITAL LETTER BETA
+<Multi_key> <g> <b>         : "β"   U03B2 # GREEK SMALL LETTER BETA
+<Multi_key> <g> <D>         : "Δ"   U0394 # GREEK CAPITAL LETTER DELTA
+<Multi_key> <g> <d>         : "δ"   U03B4 # GREEK SMALL LETTER DELTA
+<Multi_key> <g> <E>         : "Ε"   U0395 # GREEK CAPITAL LETTER EPSILON
+<Multi_key> <g> <e>         : "ε"   U03B5 # GREEK SMALL LETTER EPSILON
+<Multi_key> <g> <F>         : "Φ"   U03A6 # GREEK CAPITAL LETTER PHI
+<Multi_key> <g> <f>         : "φ"   U03C6 # GREEK SMALL LETTER PHI
+<Multi_key> <g> <G>         : "Γ"   U0393 # GREEK CAPITAL LETTER GAMMA
+<Multi_key> <g> <g>         : "γ"   U03B3 # GREEK SMALL LETTER GAMMA
+<Multi_key> <g> <H>         : "Η"   U0397 # GREEK CAPITAL LETTER ETA
+<Multi_key> <g> <h>         : "η"   U03B7 # GREEK SMALL LETTER ETA
+<Multi_key> <g> <I>         : "Ι"   U0399 # GREEK CAPITAL LETTER IOTA
+<Multi_key> <g> <i>         : "ι"   U03B9 # GREEK SMALL LETTER IOTA
+<Multi_key> <g> <J>         : "Θ"   U0398 # GREEK CAPITAL LETTER THETA
+<Multi_key> <g> <j>         : "θ"   U03B8 # GREEK SMALL LETTER THETA
+<Multi_key> <g> <K>         : "Κ"   U039A # GREEK CAPITAL LETTER KAPPA
+<Multi_key> <g> <k>         : "κ"   U03BA # GREEK SMALL LETTER KAPPA
+<Multi_key> <g> <L>         : "Λ"   U039B # GREEK CAPITAL LETTER LAMDA
+<Multi_key> <g> <l>         : "λ"   U03BB # GREEK SMALL LETTER LAMDA
+<Multi_key> <g> <M>         : "Μ"   U039C # GREEK CAPITAL LETTER MU
+<Multi_key> <g> <m>         : "μ"   U03BC # GREEK SMALL LETTER MU
+<Multi_key> <g> <N>         : "Ν"   U039D # GREEK CAPITAL LETTER NU
+<Multi_key> <g> <n>         : "ν"   U03BD # GREEK SMALL LETTER NU
+<Multi_key> <g> <O>         : "Ο"   U039F # GREEK CAPITAL LETTER OMICRON
+<Multi_key> <g> <o>         : "ο"   U03BF # GREEK SMALL LETTER OMICRON
+<Multi_key> <g> <P>         : "Π"   U03A0 # GREEK CAPITAL LETTER PI
+<Multi_key> <g> <p>         : "π"   U03C0 # GREEK SMALL LETTER PI
+<Multi_key> <g> <Q>         : "Χ"   U03A7 # GREEK CAPITAL LETTER CHI
+<Multi_key> <g> <q>         : "χ"   U03C7 # GREEK SMALL LETTER CHI
+<Multi_key> <g> <R>         : "Ρ"   U03A1 # GREEK CAPITAL LETTER RHO
+<Multi_key> <g> <r>         : "ρ"   U03C1 # GREEK SMALL LETTER RHO
+<Multi_key> <g> <S>         : "Σ"   U03A3 # GREEK CAPITAL LETTER SIGMA
+<Multi_key> <g> <s>         : "σ"   U03C3 # GREEK SMALL LETTER SIGMA
+<Multi_key> <g> <T>         : "Τ"   U03A4 # GREEK CAPITAL LETTER TAU
+<Multi_key> <g> <t>         : "τ"   U03C4 # GREEK SMALL LETTER TAU
+<Multi_key> <g> <U>         : "Υ"   U03A5 # GREEK CAPITAL LETTER UPSILON
+<Multi_key> <g> <u>         : "υ"   U03C5 # GREEK SMALL LETTER UPSILON
+<Multi_key> <g> <W>         : "Ω"   U03A9 # GREEK CAPITAL LETTER OMEGA
+<Multi_key> <g> <w>         : "ω"   U03C9 # GREEK SMALL LETTER OMEGA
+<Multi_key> <g> <X>         : "Ξ"   U039E # GREEK CAPITAL LETTER XI
+<Multi_key> <g> <x>         : "ξ"   U03BE # GREEK SMALL LETTER XI
+<Multi_key> <g> <Y>         : "Ψ"   U03A8 # GREEK CAPITAL LETTER PSI
+<Multi_key> <g> <y>         : "ψ"   U03C8 # GREEK SMALL LETTER PSI
+<Multi_key> <g> <Z>         : "Ζ"   U0396 # GREEK CAPITAL LETTER ZETA
+<Multi_key> <g> <z>         : "ζ"   U03B6 # GREEK SMALL LETTER ZETA
+
+
+# Let's try with <Multi_key> + letter description
+#
+<Multi_key> <A> <L> <P>         : "Α"   U0391 # GREEK CAPITAL LETTER ALPHA
+<Multi_key> <A> <l> <p>         : "Α"   U0391 # GREEK CAPITAL LETTER ALPHA
+<Multi_key> <a> <l> <p>         : "α"   U03B1 # GREEK SMALL LETTER ALPHA
+<Multi_key> <B> <E> <T>         : "Β"   U0392 # GREEK CAPITAL LETTER BETA
+<Multi_key> <B> <e> <t>         : "Β"   U0392 # GREEK CAPITAL LETTER BETA
+<Multi_key> <b> <e> <t>         : "β"   U03B2 # GREEK SMALL LETTER BETA
+<Multi_key> <G> <A> <M>         : "Γ"   U0393 # GREEK CAPITAL LETTER GAMMA
+<Multi_key> <G> <a> <m>         : "Γ"   U0393 # GREEK CAPITAL LETTER GAMMA
+<Multi_key> <g> <a> <m>         : "γ"   U03B3 # GREEK SMALL LETTER GAMMA
+<Multi_key> <D> <E> <L>         : "Δ"   U0394 # GREEK CAPITAL LETTER DELTA
+<Multi_key> <D> <e> <l>         : "Δ"   U0394 # GREEK CAPITAL LETTER DELTA
+<Multi_key> <d> <e> <l>         : "δ"   U03B4 # GREEK SMALL LETTER DELTA
+<Multi_key> <E> <P> <S>         : "Ε"   U0395 # GREEK CAPITAL LETTER EPSILON
+<Multi_key> <E> <p> <s>         : "Ε"   U0395 # GREEK CAPITAL LETTER EPSILON
+<Multi_key> <e> <p> <s>         : "ε"   U03B5 # GREEK SMALL LETTER EPSILON
+<Multi_key> <Z> <E> <T>         : "Ζ"   U0396 # GREEK CAPITAL LETTER ZETA
+<Multi_key> <Z> <e> <t>         : "Ζ"   U0396 # GREEK CAPITAL LETTER ZETA
+<Multi_key> <z> <e> <t>         : "ζ"   U03B6 # GREEK SMALL LETTER ZETA
+<Multi_key> <E> <T> <A>         : "Η"   U0397 # GREEK CAPITAL LETTER ETA
+<Multi_key> <E> <t> <a>         : "Η"   U0397 # GREEK CAPITAL LETTER ETA
+<Multi_key> <e> <t> <a>         : "η"   U03B7 # GREEK SMALL LETTER ETA
+<Multi_key> <T> <H> <E>         : "Θ"   U0398 # GREEK CAPITAL LETTER THETA
+<Multi_key> <T> <h> <e>         : "Θ"   U0398 # GREEK CAPITAL LETTER THETA
+<Multi_key> <t> <h> <e>         : "θ"   U03B8 # GREEK SMALL LETTER THETA
+<Multi_key> <I> <O> <T>         : "Ι"   U0399 # GREEK CAPITAL LETTER IOTA
+<Multi_key> <I> <o> <t>         : "Ι"   U0399 # GREEK CAPITAL LETTER IOTA
+<Multi_key> <i> <o> <t>         : "ι"   U03B9 # GREEK SMALL LETTER IOTA
+<Multi_key> <K> <A> <P>         : "Κ"   U039A # GREEK CAPITAL LETTER KAPPA
+<Multi_key> <K> <a> <p>         : "Κ"   U039A # GREEK CAPITAL LETTER KAPPA
+<Multi_key> <k> <a> <p>         : "κ"   U03BA # GREEK SMALL LETTER KAPPA
+<Multi_key> <L> <A> <M>         : "Λ"   U039B # GREEK CAPITAL LETTER LAMDA
+<Multi_key> <L> <a> <m>         : "Λ"   U039B # GREEK CAPITAL LETTER LAMDA
+<Multi_key> <l> <a> <m>         : "λ"   U03BB # GREEK SMALL LETTER LAMDA
+<Multi_key> <M> <U>             : "Μ"   U039C # GREEK CAPITAL LETTER MU
+<Multi_key> <M> <u>             : "Μ"   U039C # GREEK CAPITAL LETTER MU
+<Multi_key> <m> <u>             : "μ"   U03BC # GREEK SMALL LETTER MU
+<Multi_key> <N> <U>             : "Ν"   U039D # GREEK CAPITAL LETTER NU
+<Multi_key> <N> <u>             : "Ν"   U039D # GREEK CAPITAL LETTER NU
+<Multi_key> <n> <u>             : "ν"   U03BD # GREEK SMALL LETTER NU
+<Multi_key> <X> <I>             : "Ξ"   U039E # GREEK CAPITAL LETTER XI
+<Multi_key> <X> <i>             : "Ξ"   U039E # GREEK CAPITAL LETTER XI
+<Multi_key> <x> <i>             : "ξ"   U03BE # GREEK SMALL LETTER XI
+<Multi_key> <O> <M> <I>         : "Ο"   U039F # GREEK CAPITAL LETTER OMICRON
+<Multi_key> <O> <m> <i>         : "Ο"   U039F # GREEK CAPITAL LETTER OMICRON
+<Multi_key> <o> <m> <i>         : "ο"   U03BF # GREEK SMALL LETTER OMICRON
+<Multi_key> <P> <I>             : "Π"   U03A0 # GREEK CAPITAL LETTER PI
+<Multi_key> <P> <i>             : "Π"   U03A0 # GREEK CAPITAL LETTER PI
+<Multi_key> <p> <i>             : "π"   U03C0 # GREEK SMALL LETTER PI
+<Multi_key> <R> <H> <O>         : "Ρ"   U03A1 # GREEK CAPITAL LETTER RHO
+<Multi_key> <R> <h> <o>         : "Ρ"   U03A1 # GREEK CAPITAL LETTER RHO
+<Multi_key> <r> <h> <o>         : "ρ"   U03C1 # GREEK SMALL LETTER RHO
+<Multi_key> <S> <I> <G>         : "Σ"   U03A3 # GREEK CAPITAL LETTER SIGMA
+<Multi_key> <S> <i> <g>         : "Σ"   U03A3 # GREEK CAPITAL LETTER SIGMA
+<Multi_key> <s> <i> <g>         : "σ"   U03C3 # GREEK SMALL LETTER SIGMA
+<Multi_key> <T> <A> <U>         : "Τ"   U03A4 # GREEK CAPITAL LETTER TAU
+<Multi_key> <T> <a> <u>         : "Τ"   U03A4 # GREEK CAPITAL LETTER TAU
+<Multi_key> <t> <a> <u>         : "τ"   U03C4 # GREEK SMALL LETTER TAU
+<Multi_key> <U> <P> <S>         : "Υ"   U03A5 # GREEK CAPITAL LETTER UPSILON
+<Multi_key> <U> <p> <s>         : "Υ"   U03A5 # GREEK CAPITAL LETTER UPSILON
+<Multi_key> <u> <p> <s>         : "υ"   U03C5 # GREEK SMALL LETTER UPSILON
+<Multi_key> <P> <H> <I>         : "Φ"   U03A6 # GREEK CAPITAL LETTER PHI
+<Multi_key> <P> <h> <i>         : "Φ"   U03A6 # GREEK CAPITAL LETTER PHI
+<Multi_key> <p> <h> <i>         : "φ"   U03C6 # GREEK SMALL LETTER PHI
+<Multi_key> <C> <H> <I>         : "Χ"   U03A7 # GREEK CAPITAL LETTER CHI
+<Multi_key> <C> <h> <i>         : "Χ"   U03A7 # GREEK CAPITAL LETTER CHI
+<Multi_key> <c> <h> <i>         : "χ"   U03C7 # GREEK SMALL LETTER CHI
+<Multi_key> <P> <S> <I>         : "Ψ"   U03A8 # GREEK CAPITAL LETTER PSI
+<Multi_key> <P> <s> <i>         : "Ψ"   U03A8 # GREEK CAPITAL LETTER PSI
+<Multi_key> <p> <s> <i>         : "ψ"   U03C8 # GREEK SMALL LETTER PSI
+<Multi_key> <O> <M> <E>         : "Ω"   U03A9 # GREEK CAPITAL LETTER OMEGA
+<Multi_key> <O> <m> <e>         : "Ω"   U03A9 # GREEK CAPITAL LETTER OMEGA
+<Multi_key> <o> <m> <e>         : "ω"   U03C9 # GREEK SMALL LETTER OMEGA
+
+<Multi_key> <m> <i>             : "µ"   U00B5 # MICRO SIGN
+<Multi_key> <o> <h> <m>         : "Ω"   U2126 # OHM SIGN ("but U03A9 Ω GREEK CAPITAL LETTER OMEGA is preferred")
+
+
+###
+### Latin superscript  BROKEN and BREAKING
+###
+<Multi_key> <O> <m> <e>         : "Ω"   U03A9 # GREEK LETTER OMEGA
+# Superscript is done with "^" first, then the letter;
+# this overrides some accented letters (for example, <^> + <a> would normally be "â")
+# but those can be still typed by adding the caret after the letter (e.g. <a> + <^>).
+#
+# Sources:
+#  - Spacing Modifier Letters:    02B0-02FF
+#  - Phonetic extensions:         1D00-1D7F
+#  - Superscripts and Subscripts: 2070-209F
+#  - Latin Extended-F:            107A5
+#
+
+<Multi_key> <asciicircum> <a> <a> : "ᵃ"   U1D43 # LATIN SMALL LETTER A SUPERSCRIPT
+<Multi_key> <asciicircum> <b> <b> : "ᵇ"   U1D47 # LATIN SMALL LETTER B SUPERSCRIPT (avoid conflict with <^bet>)
+<Multi_key> <asciicircum> <c> <c> : "ᶜ"         # LATIN SMALL LETTER C SUPERSCRIPT (avoid conflict with <^chi>)
+<Multi_key> <asciicircum> <d> <d> : "ᵈ"   U1D48 # LATIN SMALL LETTER D SUPERSCRIPT (avoid conflict with <^del>)
+<Multi_key> <asciicircum> <e> <e> : "ᵉ"   U1D49 # LATIN SMALL LETTER E SUPERSCRIPT (avoid conflict with <^eps>)
+<Multi_key> <asciicircum> <f>     : "ᶠ"         # LATIN SMALL LETTER F SUPERSCRIPT
+<Multi_key> <asciicircum> <g> <g> : "ᵍ"   U1D4D # LATIN SMALL LETTER G SUPERSCRIPT (avoid conflict with <^gam>)
+<Multi_key> <asciicircum> <h>     : "ʰ"   U02B0 # LATIN SMALL LETTER H SUPERSCRIPT
+<Multi_key> <asciicircum> <i>     : "ⁱ"   U2071 # LATIN SMALL LETTER I SUPERSCRIPT
+<Multi_key> <asciicircum> <j>     : "ʲ"   U02B2 # LATIN SMALL LETTER J SUPERSCRIPT
+<Multi_key> <asciicircum> <k>     : "ᵏ"   U1D4F # LATIN SMALL LETTER K SUPERSCRIPT
+<Multi_key> <asciicircum> <l>     : "ˡ"   U02E1 # LATIN SMALL LETTER L SUPERSCRIPT
+<Multi_key> <asciicircum> <m>     : "ᵐ"   U1D50 # LATIN SMALL LETTER M SUPERSCRIPT
+<Multi_key> <asciicircum> <n>     : "ⁿ"   U207F # LATIN SMALL LETTER N SUPERSCRIPT
+<Multi_key> <asciicircum> <o>     : "ᵒ"   U1D52 # LATIN SMALL LETTER O SUPERSCRIPT
+<Multi_key> <asciicircum> <p>     : "ᵖ"   U1D56 # LATIN SMALL LETTER P SUPERSCRIPT (avoid conflict with <^phi>)
+<Multi_key> <asciicircum> <q>     : "𐞥"  U107A5 # LATIN SMALL LETTER Q SUPERSCRIPT
+<Multi_key> <asciicircum> <r>     : "ʳ"   U02B3 # LATIN SMALL LETTER R SUPERSCRIPT
+<Multi_key> <asciicircum> <s>     : "ˢ"   U02E2 # LATIN SMALL LETTER S SUPERSCRIPT
+<Multi_key> <asciicircum> <t>     : "ᵗ"   U1D57 # LATIN SMALL LETTER T SUPERSCRIPT
+<Multi_key> <asciicircum> <u>     : "ᵘ"   U1D58 # LATIN SMALL LETTER U SUPERSCRIPT
+<Multi_key> <asciicircum> <v>     : "ᵛ"   U1D5B # LATIN SMALL LETTER V SUPERSCRIPT
+<Multi_key> <asciicircum> <w>     : "ʷ"   U02B7 # LATIN SMALL LETTER W SUPERSCRIPT
+<Multi_key> <asciicircum> <x>     : "ˣ"   U02E3 # LATIN SMALL LETTER X SUPERSCRIPT
+<Multi_key> <asciicircum> <y>     : "ʸ"   U02B8 # LATIN SMALL LETTER Y SUPERSCRIPT
+<Multi_key> <asciicircum> <z>     : "ᶻ"         # LATIN SMALL LETTER Z SUPERSCRIPT
+
+
+<Multi_key> <asciicircum> <A> : "ᴬ"   U1D2C # LATIN CAPITAL LETTER A SUPERSCRIPT
+<Multi_key> <asciicircum> <B> : "ᴮ"   U1D2E # LATIN CAPITAL LETTER B SUPERSCRIPT
+
+# <Multi_key> <asciicircum> <C> : " "   U     # LATIN CAPITAL LETTER C SUPERSCRIPT
+
+<Multi_key> <asciicircum> <D> : "ᴰ"   U1D30 # LATIN CAPITAL LETTER D SUPERSCRIPT
+<Multi_key> <asciicircum> <E> : "ᴱ"   U1D31 # LATIN CAPITAL LETTER E SUPERSCRIPT
+
+# <Multi_key> <asciicircum> <F> : " "   U     # LATIN CAPITAL LETTER F SUPERSCRIPT
+
+<Multi_key> <asciicircum> <G> : "ᴳ"   U1D33 # LATIN CAPITAL LETTER G SUPERSCRIPT
+<Multi_key> <asciicircum> <H> : "ᴴ"   U1D34 # LATIN CAPITAL LETTER H SUPERSCRIPT
+<Multi_key> <asciicircum> <I> : "ᴵ"   U1D35 # LATIN CAPITAL LETTER I SUPERSCRIPT
+<Multi_key> <asciicircum> <J> : "ᴶ"   U1D36 # LATIN CAPITAL LETTER J SUPERSCRIPT
+<Multi_key> <asciicircum> <K> : "ᴷ"   U1D37 # LATIN CAPITAL LETTER K SUPERSCRIPT
+<Multi_key> <asciicircum> <L> : "ᴸ"   U1D38 # LATIN CAPITAL LETTER L SUPERSCRIPT
+<Multi_key> <asciicircum> <M> : "ᴹ"   U1D39 # LATIN CAPITAL LETTER M SUPERSCRIPT
+<Multi_key> <asciicircum> <N> : "ᴺ"   U1D3A # LATIN CAPITAL LETTER N SUPERSCRIPT
+<Multi_key> <asciicircum> <O> : "ᴼ"   U1D3C # LATIN CAPITAL LETTER O SUPERSCRIPT
+<Multi_key> <asciicircum> <P> : "ᴾ"   U1D3E # LATIN CAPITAL LETTER P SUPERSCRIPT
+
+# <Multi_key> <asciicircum> <Q> : " "   U     # LATIN CAPITAL LETTER Q SUPERSCRIPT
+
+<Multi_key> <asciicircum> <R> : "ᴿ"   U1D3F # LATIN CAPITAL LETTER R SUPERSCRIPT
+
+# <Multi_key> <asciicircum> <S> : " "   U     # LATIN CAPITAL LETTER S SUPERSCRIPT
+
+<Multi_key> <asciicircum> <T> : "ᵀ"   U1D40 # LATIN CAPITAL LETTER T SUPERSCRIPT
+<Multi_key> <asciicircum> <U> : "ᵁ"   U1D41 # LATIN CAPITAL LETTER U SUPERSCRIPT
+
+# <Multi_key> <asciicircum> <V> : " "   U     # LATIN CAPITAL LETTER V SUPERSCRIPT
+
+<Multi_key> <asciicircum> <W> : "ᵂ"   U1D42 # LATIN CAPITAL LETTER W SUPERSCRIPT
+
+# <Multi_key> <asciicircum> <X> : " "   U     # LATIN CAPITAL LETTER X SUPERSCRIPT
+# <Multi_key> <asciicircum> <Y> : " "   U     # LATIN CAPITAL LETTER Y SUPERSCRIPT
+# <Multi_key> <asciicircum> <Z> : " "   U     # LATIN CAPITAL LETTER Z SUPERSCRIPT
+
+
+###
+### Greek superscript  BROKEN
+###
+# Superscript is done with "^" first, then the letter;
+# this overrides some accented letters (for example, <^> + <a> would normally be "â")
+# but those can be still typed by adding the caret after the letter (e.g. <a> + <^>).
+#
+# Sources:
+#  - Phonetic extensions:         1D00-1D7F
+#
+
+# <Multi_key> <asciicircum> <a> <l> <p> : ""   U     # GREEK SMALL LETTER ALPHA SUPERSCRIPT
+
+<Multi_key> <asciicircum> <b> <e> <t> : "ᵝ"   U1D5D # GREEK SMALL LETTER BETA SUPERSCRIPT
+<Multi_key> <asciicircum> <g> <a> <m> : "ᵞ"   U1D5E # GREEK SMALL LETTER GAMMA SUPERSCRIPT
+<Multi_key> <asciicircum> <d> <e> <l> : "ᵟ"   U1D5F # GREEK SMALL LETTER DELTA SUPERSCRIPT
+<Multi_key> <asciicircum> <e> <p> <s> : "ᵋ"   U1D4B # GREEK SMALL LETTER EPSILON SUPERSCRIPT
+
+# <Multi_key> <asciicircum> <z> <e> <t> : ""   U     # GREEK SMALL LETTER ZETA SUPERSCRIPT
+# <Multi_key> <asciicircum> <e> <t> <a> : ""   U     # GREEK SMALL LETTER ETA SUPERSCRIPT
+# <Multi_key> <asciicircum> <t> <h> <e> : ""   U     # GREEK SMALL LETTER THETA SUPERSCRIPT
+# <Multi_key> <asciicircum> <i> <o> <t> : ""   U     # GREEK SMALL LETTER IOTA SUPERSCRIPT
+# <Multi_key> <asciicircum> <k> <a> <p> : ""   U     # GREEK SMALL LETTER KAPPA SUPERSCRIPT
+# <Multi_key> <asciicircum> <l> <a> <m> : ""   U     # GREEK SMALL LETTER LAMDA SUPERSCRIPT
+# <Multi_key> <asciicircum> <m> <u>     : ""   U     # GREEK SMALL LETTER MU SUPERSCRIPT
+# <Multi_key> <asciicircum> <n> <u>     : ""   U     # GREEK SMALL LETTER NU SUPERSCRIPT
+# <Multi_key> <asciicircum> <x> <i>     : ""   U     # GREEK SMALL LETTER XI SUPERSCRIPT
+# <Multi_key> <asciicircum> <o> <m> <i> : ""   U     # GREEK SMALL LETTER OMICRON SUPERSCRIPT
+# <Multi_key> <asciicircum> <p> <i>     : ""   U     # GREEK SMALL LETTER PI SUPERSCRIPT
+# <Multi_key> <asciicircum> <r> <h> <o> : ""   U     # GREEK SMALL LETTER RHO SUPERSCRIPT
+# <Multi_key> <asciicircum> <s> <i> <g> : ""   U     # GREEK SMALL LETTER SIGMA SUPERSCRIPT
+# <Multi_key> <asciicircum> <t> <a> <u> : ""   U     # GREEK SMALL LETTER TAU SUPERSCRIPT
+# <Multi_key> <asciicircum> <u> <p> <s> : ""   U     # GREEK SMALL LETTER UPSILON SUPERSCRIPT
+
+<Multi_key> <asciicircum> <p> <h> <i> : "ᵠ"   U1D60 # GREEK SMALL LETTER PHI SUPERSCRIPT
+<Multi_key> <asciicircum> <c> <h> <i> : "ᵡ"   U1D61 # GREEK SMALL LETTER CHI SUPERSCRIPT
+
+# <Multi_key> <asciicircum> <p> <s> <i> : ""   U     # GREEK SMALL LETTER PSI SUPERSCRIPT
+# <Multi_key> <asciicircum> <o> <m> <e> : ""   U     # GREEK SMALL LETTER OMEGA SUPERSCRIPT
+
+
+###
+### Math superscript
+###
+
+###
+### Latin subscript
+###
+#
+# Subscript is done with "_" first, then the letter;
+# this overrides some accented letters (for example, <_> + <a> would normally be "ā")
+# but those can be still typed by adding the underscore after the letter (e.g. <a> + <_>).
+#
+# Sources:
+#  - Superscripts and Subscripts: 2070-209F
+#
+
+<Multi_key> <underscore> <a>     : "ₐ"   U2090 # LATIN SMALL LETTER A SUBCRIPT
+
+# <Multi_key> <underscore> <b>     : " "   U     # LATIN SMALL LETTER B SUBCRIPT
+# <Multi_key> <underscore> <c>     : " "   U     # LATIN SMALL LETTER C SUBCRIPT
+# <Multi_key> <underscore> <d>     : " "   U     # LATIN SMALL LETTER D SUBCRIPT
+
+<Multi_key> <underscore> <e>     : "ₑ"   U2091 # LATIN SMALL LETTER E SUBCRIPT
+
+# <Multi_key> <underscore> <f>     : " "   U     # LATIN SMALL LETTER F SUBCRIPT
+# <Multi_key> <underscore> <g>     : " "   U     # LATIN SMALL LETTER G SUBCRIPT
+
+<Multi_key> <underscore> <h>     : "ₕ"   U2095 # LATIN SMALL LETTER H SUBCRIPT
+
+# <Multi_key> <underscore> <i>     : " "   U     # LATIN SMALL LETTER I SUBCRIPT
+# <Multi_key> <underscore> <j>     : " "   U     # LATIN SMALL LETTER J SUBCRIPT
+
+<Multi_key> <underscore> <k>     : "ₖ"   U2096 # LATIN SMALL LETTER K SUBCRIPT
+<Multi_key> <underscore> <l>     : "ₗ"   U2097 # LATIN SMALL LETTER L SUBCRIPT
+<Multi_key> <underscore> <m>     : "ₘ"   U2098 # LATIN SMALL LETTER M SUBCRIPT
+<Multi_key> <underscore> <n>     : "ₙ"   U2099 # LATIN SMALL LETTER N SUBCRIPT
+<Multi_key> <underscore> <o>     : "ₒ"   U2092 # LATIN SMALL LETTER O SUBCRIPT
+<Multi_key> <underscore> <p> <p> : "ₚ"   U209A # LATIN SMALL LETTER P SUBCRIPT
+
+# <Multi_key> <underscore> <q>     : " "   U     # LATIN SMALL LETTER Q SUBCRIPT
+# <Multi_key> <underscore> <r>     : " "   U     # LATIN SMALL LETTER R SUBCRIPT
+
+<Multi_key> <underscore> <s>     : "ₛ"   U209B # LATIN SMALL LETTER S SUBCRIPT
+<Multi_key> <underscore> <t>     : "ₜ"   U209C # LATIN SMALL LETTER T SUBCRIPT
+
+# <Multi_key> <underscore> <u>     : " "   U     # LATIN SMALL LETTER U SUBCRIPT
+# <Multi_key> <underscore> <v>     : " "   U     # LATIN SMALL LETTER V SUBCRIPT
+# <Multi_key> <underscore> <w>     : " "   U     # LATIN SMALL LETTER W SUBCRIPT
+
+<Multi_key> <underscore> <x>     : "ₓ"   U2093 # LATIN SMALL LETTER X SUBCRIPT
+
+# <Multi_key> <underscore> <y>     : " "   U     # LATIN SMALL LETTER Y SUBCRIPT
+# <Multi_key> <underscore> <z>     : " "   U     # LATIN SMALL LETTER Z SUBCRIPT
+
+
+###
+### Greek subscript
+###
+#
+# Sources:
+#  - Phonetic extensions:         1D00-1D7F
+#
+
+# <Multi_key> <underscore> <a> <l> <p> : ""   U     # GREEK SMALL LETTER ALPHA SUBSCRIPT
+
+<Multi_key> <underscore> <b> <e> <t> : "ᵦ"   U1D66 # GREEK SMALL LETTER BETA SUBSCRIPT
+<Multi_key> <underscore> <g> <a> <m> : "ᵧ"   U1D67 # GREEK SMALL LETTER GAMMA SUBSCRIPT
+
+# <Multi_key> <underscore> <d> <e> <l> : ""   U     # GREEK SMALL LETTER DELTA SUBSCRIPT
+# <Multi_key> <underscore> <e> <p> <s> : ""   U     # GREEK SMALL LETTER EPSILON SUBSCRIPT
+# <Multi_key> <underscore> <z> <e> <t> : ""   U     # GREEK SMALL LETTER ZETA SUBSCRIPT
+# <Multi_key> <underscore> <e> <t> <a> : ""   U     # GREEK SMALL LETTER ETA SUBSCRIPT
+# <Multi_key> <underscore> <t> <h> <e> : ""   U     # GREEK SMALL LETTER THETA SUBSCRIPT
+# <Multi_key> <underscore> <i> <o> <t> : ""   U     # GREEK SMALL LETTER IOTA SUBSCRIPT
+# <Multi_key> <underscore> <k> <a> <p> : ""   U     # GREEK SMALL LETTER KAPPA SUBSCRIPT
+# <Multi_key> <underscore> <l> <a> <m> : ""   U     # GREEK SMALL LETTER LAMDA SUBSCRIPT
+# <Multi_key> <underscore> <m> <u>     : ""   U     # GREEK SMALL LETTER MU SUBSCRIPT
+# <Multi_key> <underscore> <n> <u>     : ""   U     # GREEK SMALL LETTER NU SUBSCRIPT
+# <Multi_key> <underscore> <x> <i>     : ""   U     # GREEK SMALL LETTER XI SUBSCRIPT
+# <Multi_key> <underscore> <o> <m> <i> : ""   U     # GREEK SMALL LETTER OMICRON SUBSCRIPT
+# <Multi_key> <underscore> <p> <i>     : ""   U     # GREEK SMALL LETTER PI SUBSCRIPT
+
+<Multi_key> <underscore> <r> <h> <o> : "ᵨ"   U1D68 # GREEK SMALL LETTER RHO SUBSCRIPT
+
+# <Multi_key> <underscore> <s> <i> <g> : ""   U     # GREEK SMALL LETTER SIGMA SUBSCRIPT
+# <Multi_key> <underscore> <t> <a> <u> : ""   U     # GREEK SMALL LETTER TAU SUBSCRIPT
+# <Multi_key> <underscore> <u> <p> <s> : ""   U     # GREEK SMALL LETTER UPSILON SUBSCRIPT
+
+<Multi_key> <underscore> <p> <h> <i> : "ᵩ"   U1D69 # GREEK SMALL LETTER PHI SUBSCRIPT
+<Multi_key> <underscore> <c> <h> <i> : "ᵪ"   U1D6A # GREEK SMALL LETTER CHI SUBSCRIPT
+
+# <Multi_key> <underscore> <p> <s> <i> : ""   U     # GREEK SMALL LETTER PSI SUBSCRIPT
+# <Multi_key> <underscore> <o> <m> <e> : ""   U     # GREEK SMALL LETTER OMEGA SUBSCRIPT
+
+
+#
+# math subscript
+#
+
+# none additional needed so far
+
+#
+# arrows
+#
+
+<Multi_key> <less> <greater>          : "↔"   U2194     # LEFT RIGHT ARROW
+<Multi_key> <equal> <less> <greater>  : "⇔"   U21D4     # LEFT RIGHT DOUBLE ARROW
+<Multi_key> <equal> <equal> <less>    : "⇐"   U21D0     # LEFTWARDS DOUBLE ARROW
+<Multi_key> <equal> <equal> <greater> : "⇒"   U21D3     # RIGHTWARDS DOUBLE ARROW
+
+
+#
+# more math
+#
+
+<Multi_key> <E> <L> <L> : "ℒ"   U2112     # SCRIPT CAPITAL L
+<Multi_key> <E> <l> <l> : "ℒ"   U2112     # SCRIPT CAPITAL L
+<Multi_key> <e> <l> <l> : "ℓ"   U2113     # SCRIPT SMALL L
+
+<Multi_key> <O> <O>     : "𝒪"  U1D4AA     # MATHEMATICAL SCRIPT CAPITAL O
+<Multi_key> <o> <o>     : "°"   U00B0     # DEGREE SIGN
+
+<Multi_key> <R> <e>     : "ℜ"  U211C     # BLACK-LETTER CAPITAL R
+<Multi_key> <I> <m>     : "ℑ"  U2111     # BLACK-LETTER CAPITAL I
+
+<Multi_key> <bar> <N>   : "ℕ"  U2115         # DOUBLE-STRUCK CAPITAL N
+<Multi_key> <bar> <Z>   : "ℤ"  U2124         # DOUBLE-STRUCK CAPITAL Z
+<Multi_key> <bar> <R>   : "ℝ"  U211D         # DOUBLE-STRUCK CAPITAL R
+<Multi_key> <bar> <Q>   : "ℚ"  U211A         # DOUBLE-STRUCK CAPITAL Q
+<Multi_key> <bar> <C>   : "ℂ"  U2102         # DOUBLE-STRUCK CAPITAL C
+
+<Multi_key> <3> <v> <slash>         : "∛"  U221B   # CUBE ROOT
+<Multi_key> <p> <r> <o> <p>         : "∝"  U221D   # PROPORTIONAL TO
+<Multi_key> <i> <n> <f>             : "∞"  U221E   # INFINITY
+<Multi_key> <e> <x> <s> <t>         : "∃"  U2203   # THERE EXISTS
+<Multi_key> <e> <x> <s> <slash>     : "∄"  U2204   # THERE DOES NOT EXIST
+<Multi_key> <a> <l> <l>             : "∀"  U2200   # FOR ALL
+<Multi_key> <V> <minus>             : "∀"  U2200   # FOR ALL
+<Multi_key> <minus> <V>             : "∀"  U2200   # FOR ALL
+<Multi_key> <d> <d>                 : "∂"  U2202   # PARTIAL DIFFERENTIAL
+<Multi_key> <e> <m> <p> <t> <y>     : "∅"  U2205   # EMPTY SET
+<Multi_key> <i> <n> <c>             : "∈"  U2208   # ELEMENT OF (not the SMALL version ∊ 220A)
+<Multi_key> <i> <n> <slash>         : "∉"  U2209   # NOT AN ELEMENT OF
+<Multi_key> <a> <n> <d>             : "∧"  U2227   # LOGICAL AND
+<Multi_key> <o> <r>                 : "∨"  U2228   # LOGICAL OR
+<Multi_key> <p> <e> <r> <p>         : "⟂"  U27C2   # PERPENDICULAR
+
+<Multi_key> <S> <U> <M> : "∑"   U2211     # N-ARY SUMMATION
+<Multi_key> <S> <u> <m> : "∑"   U2211     # N-ARY SUMMATION
+<Multi_key> <s> <u> <m> : "∑"   U2211     # N-ARY SUMMATION
+
+<Multi_key> <I> <N> <T> : "∫"   U222B     # INTEGRAL
+<Multi_key> <I> <n> <t> : "∫"   U222B     # INTEGRAL
+<Multi_key> <i> <n> <t> : "∫"   U222B     # INTEGRAL
+
+<Multi_key> <O> <R>                 : "®"  U00AE   # REGISTERED SIGN
