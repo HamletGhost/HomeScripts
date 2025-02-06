@@ -42,6 +42,8 @@
 #   added `--relative` option for copy
 # 1.16 (20240805, petrillo@slac.stanford.edu)
 #   added `--opt` documentation
+# 1.17 (20241210, petrillo@slac.stanford.edu)
+#   do not go into background by default when forwarding ports
 #
 
 SCRIPTNAME="$(basename "$0")"
@@ -172,7 +174,7 @@ function help_common() {
 	--k5lifetime=LIFETIME ['${KerberosTicketLifetime}']
 	    when requesting a new ticket, ask it to last for lifetime (it may still
 	    be renewed beyond it)
-	--k5enewtime=RENEWTIME ['${KerberosTicketRenewTime}']
+	--k5renewtime=RENEWTIME ['${KerberosTicketRenewTime}']
 	    when requesting a new ticket, ask to allow it to be renewed up to
 	    RENEWTIME time (in total)
 	--notrenewable
@@ -496,24 +498,46 @@ function isFlagOver() {
 	[[ -n "${!VARNAME}" ]] && [[ "${!VARNAME}" -ge "$Threshold" ]]
 }
 
-function ifFlagSet() {
-	# ifFlagSet FLAGNAME TrueString [FalseString]
+function ifFlagSetImpl() {
+	# ifFlagSet Mode FLAGNAME TrueString [FalseString]
 	# 
-	# Prints <TrueString> if FLAGNAME is set, <FalseString> otherwise (which by
-	# default it is empty, in which case nothing is printed).
+	# Mode = isFlagSet ->
+	#   Prints <TrueString> if FLAGNAME is set, <FalseString> otherwise (which by
+	#   default it is empty, in which case nothing is printed).
+	# Mode = isFlagUnset -> the opposite
 	#
-	local -r FlagName="$1"
-	local -r TrueString="$2"
-	local -r FalseString="$3"
+	local -r Mode="$1"
+	local -r FlagName="$2"
+	local -r TrueString="$3"
+	local -r FalseString="$4"
 	
-	if isFlagSet "$FlagName" ; then
+	if "$Mode" "$FlagName" ; then
 		echo "$TrueString"
 		true # for the return value
 	else
 		[[ $# -ge 3 ]] && echo "$FalseString"
 		false # for the return value
 	fi
+} # ifFlagSetImpl()
+
+function ifFlagSet() {
+	# ifFlagSet FLAGNAME TrueString [FalseString]
+	# 
+	# Prints <TrueString> if FLAGNAME is set, <FalseString> otherwise (which by
+	# default it is empty, in which case nothing is printed).
+	#
+	ifFlagSetImpl isFlagSet "$@"
 } # ifFlagSet()
+
+function ifFlagUnset() {
+	# ifFlagUnset FLAGNAME FalseString [TrueString]
+	# 
+	# Prints <FalseString> if FLAGNAME is set, <TrueString> otherwise (which by
+	# default it is empty, in which case nothing is printed).
+	#
+	ifFlagSetImpl isFlagUnset "$@"
+} # ifFlagUnset()
+
 
 function STDERR() { echo "$*" >&2 ; }
 
@@ -1200,7 +1224,7 @@ function init_parameters_tunnel() {
 	TunnelSpecPattern='^(([0-9]+)(=>|->))?(([^:]*):)?([0-9]+)$'
 
 	TunnelTargetSpecs=( )
-	GoToBackground=0
+	GoBackground=0
 	Command=( )
 } # init_parameters_tunnel()
 
@@ -1224,7 +1248,7 @@ function parse_options_tunnel() {
 			case "$Param" in
 				( '--openport='* )        LocalPort="${Param#--*=}" ;;
 				( '-P' )   let ++iParam ; LocalPort="${!iParam}" ;;
-				( '--background' | '-f' ) GoToBackground=1 ;;
+				( '--background' | '-f' ) GoBackground=1 ;;
 				( '--pid='* )             PIDFile="${Param#--*=}" ;;
 				( * )
 					FATAL 1 "Invalid ${MODE} mode option '${Param}'."
@@ -1809,8 +1833,8 @@ case "$MODE" in
 			Tunnels+=( '-L' "${TunnelTargetLocalPort}:${TunnelTargetHost}:${TunnelTargetPort}" )
 		done
 		TunnelOptions=( "${Tunnels[@]}" -o 'ExitOnForwardFailure yes' -o 'TCPKeepAlive yes' -o 'ServerAliveInterval 15' )
-		[[ "${#Command[@]}" == 0 ]] && TunnelOptions+=( '-N' ) && GoToBackground=1
-		isFlagSet GoToBackground && TunnelOptions+=( '-f' )
+		[[ "${#Command[@]}" == 0 ]] && TunnelOptions+=( '-N' )
+		isFlagSet GoBackground && TunnelOptions+=( '-f' )
 		isIP6 "$TunnelTargetHost" || TunnelOptions+=( '-4' )
 		Execute $ssh -l "$RemoteUser" "${ssh_options[@]}" "${TunnelOptions[@]}" "$RemoteHostID" "${Command[@]}"
 		ExitCode=$?
