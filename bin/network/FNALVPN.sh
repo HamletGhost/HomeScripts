@@ -3,15 +3,15 @@
 SCRIPTNAME="$(basename "$0")"
 
 declare Server='vpn.fnal.gov'
-declare Server='v-main-gcca-1-outside.fnal.gov'
 # declare VPNUser='petrillo@services.fnal.gov'
 declare VPNUser='petrillo'
 declare VPNGroup='02_General-Users-RSA'
 declare PIDFile="/var/run/openconnect-${VPNUser}-${Server}.pid"
  
 declare -a ServerCerts=(
-#  'pin-sha256:YuGjyXELNTCeOF0K2dcBk6tBedNJNNHH34Yhb5u2eIo='
+  'pin-sha256:YuGjyXELNTCeOF0K2dcBk6tBedNJNNHH34Yhb5u2eIo='
   'pin-sha256:xYUKRSEdpUFXNW+JubtPOTOqemN1CC8nmwEs8ym5z2g='
+  'pin-sha256:c8sHMgoZ2Ok3H9eC6ir5kVnpdIf6KoLCRPXPtZgCr3k=' # 20241209
   )
 
 # ==============================================================================
