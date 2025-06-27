@@ -69,7 +69,7 @@ function ApplyFilters() {
 	local -a Filters=( "$@" )
 	if isFlagSet HeadLines ; then
 		DBGN 2 "Piping filter head on input..."
-		Filters+=( head -n "$HeadLines" )
+		Filters+=( "head -n '${HeadLines}'" )
 	fi
 	[[ ${#Filters[@]} == 0 ]] && Filters=( 'cat' )
 	local FilterString="$( printf '%s |' "${Filters[@]}" )"

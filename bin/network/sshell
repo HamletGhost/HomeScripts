@@ -815,8 +815,18 @@ function TransferData() {
 	shift
 	local -a Sources=( "$@" )
 	local -a Options=( "${TransferOptions[@]}" )
+	local -a FilteredSSHoptions
+	local -i iOption
+	for (( iOption = 0 ; iOption < "${#ssh_options[@]}" ; ++iOption )); do
+		local Option="${ssh_options[iOption]}"
+		case "$Option" in
+			( '-X' | '-x' | '-Y' | '-y' ) continue ;; # skip these options
+		esac
+		FilteredSSHoptions+=( "\"${Option}\"" )
+	done
 	[[ "${#Options[@]}" == 0 ]] && Options=( "${transfer_default_options[@]}" )
-	Execute rsync "${Options[@]}" -e ssh "${Sources[@]}" "$Destination"
+	# option quoting here is poor
+	Execute rsync "${Options[@]}" -e "ssh${FilteredSSHoptions:+ ${FilteredSSHoptions[*]}}" "${Sources[@]}" "$Destination"
 } # TransferData()
 
 

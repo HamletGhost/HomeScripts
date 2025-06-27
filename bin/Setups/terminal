@@ -4,4 +4,6 @@ if tty --quiet ; then
 	if [[ -z "$LINES" ]] || [[ -z "$COLUMNS" ]] && ! shopt -q login_shell ; then
 		which resize >& /dev/null && eval $(resize)
 	fi
+	# make these available to subshell scripts too
+	export LINES COLUMNS
 fi

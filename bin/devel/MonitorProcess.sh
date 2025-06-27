@@ -17,10 +17,12 @@
 #     added output to files
 # 1.5 (petrillo@fnal.gov) 20161010
 #     updated for OSX
+# 1.6 (petrillo@slac.stanford.edu) 20241122
+#     added --wait option
 #
 
 SCRIPTNAME="$(basename "$0")"
-SCRIPTVERSION="1.5"
+SCRIPTVERSION="1.6"
 
 function isOSX() {
 	[[ ! -d '/proc' ]] # this is not correct, but it's a shortcut
@@ -35,7 +37,7 @@ else
 fi
 : ${DEFAULTMAPNAME:="memmap-%TIME%.txt"}
 
-: ${Width="$COLUMNS"}
+: ${Width:="$COLUMNS"}
 if [[ -z "$Width" ]]; then
 	eval $(resize)
 	Width="$COLUMNS"
@@ -51,6 +53,8 @@ function help() {
 	Options:
 	--every=SECONDS ['${POLLDELAY}']
 	    print statistics every SECONDS
+	--wait=SECONDS
+	    wait this long before giving up if the specified program is not detected
 	--mempeak , --vmpeak
 	    monitors the peak memory usage and prints it at the end of the process
 	--hdrevery=LINES ['${HeaderEvery}']
@@ -174,7 +178,6 @@ function GetPID() {
 	local -i nPIDs="${#PIDs[@]}"
 	local PID=0
 	if [[ $nPIDs == 0 ]]; then
-		echo "No process matching '${ProgName}'." >&2
 		echo "$ProgName"
 		return 1
 	elif [[ $nPIDs -gt 1 ]]; then
@@ -242,7 +245,7 @@ function OnExit() {
 ################################################################################
 declare DoHelp=0 DoVersion=0 OnlyPrintEnvironment=0 NoLogDump=0
 
-declare HeaderEvery=25
+declare HeaderEvery=25 WaitTime=0
 declare -a LogFiles OutputFiles
 
 declare -i NoMoreOptions=0
@@ -258,6 +261,7 @@ for (( iParam = 1 ; iParam <= $# ; ++iParam )); do
 			### behaviour options
 			( '--mempeak' | '--vmpeak' ) FindMemPeak=1 ;;
 			( '--every='* )    POLLDELAY="${Param#--*=}" ;;
+			( '--wait='* )     WaitTime="${Param#--*=}" ;;
 			( '--hdrevery='* ) HeaderEvery="${Param#--*=}" ;;
 			( '--cols='* )     Width="${Param#--*=}" ;;
 			( '--psopts='* )   PSOPTS="${Param#--*=}" ;;
@@ -310,10 +314,18 @@ fi
 [[ "${#OutputFiles[*]}" == 0 ]] && OutputFiles=( '' )
 
 ProcessSpec="${Processes[0]}"
-PID="$(GetPID "${Processes[0]}")"
 
-if ! isProcessRunning "$PID" ; then
-	echo "$(GetDateTag) - no process ${ProcessSpec} (PID=${PID}) is currently running."
+let WaitTime*=10 # integral count on tenths of seconds
+declare -i WaitTimeElapsed=0
+while [[ $WaitTimeElapsed -le $WaitTime ]]; do
+	PID="$(GetPID "${Processes[0]}")" && break
+	[[ $WaitTimeElapsed == 0 ]] && echo "Waiting up to $((WaitTime/10)) s for the process to start."
+	sleep 0.1
+	let WaitTimeElapsed+=1
+done
+# if [[ ! "$PID" =~ ^[0-9]+$ ]] || ! isProcessRunning "$PID" ; then
+if [[ $WaitTimeElapsed -gt $WaitTime ]] ; then
+	echo "$(GetDateTag) - no process ${ProcessSpec} is currently running."
 	exit 1
 fi
 
