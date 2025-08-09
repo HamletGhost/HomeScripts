@@ -44,13 +44,15 @@
 #   added `--opt` documentation
 # 1.17 (20241210, petrillo@slac.stanford.edu)
 #   do not go into background by default when forwarding ports
+# 1.18 (20250809, petrillo@slac.stanford.edu)
+#   extended SSH (filtered) options to proxy mode (enables jumps)
 #
 
 SCRIPTNAME="$(basename "$0")"
 SCRIPTDIR="$(dirname "$0")"
 CWD="$(pwd)"
 
-SCRIPTVERSION="1.16"
+SCRIPTVERSION="1.18"
 
 # program paths
 : ${kinit:="kinit"}
@@ -649,6 +651,34 @@ function JoinStrings() {
 } # JoinStrings()
 
 
+function PurgeFromList() {
+	#
+	# PurgeFromList -- ElementToPurge [...] -- ListElement ListElement
+	# 
+	# Prints the ListElement values which are not equal to any of the ElementToPurge;
+	# kind of a `grep -v`.
+	# The first parameter, the separator, may be `--` or any other string which is not an ElementToPurge.
+	#
+	local Sep="$1"
+	shift
+	local -a ElementsToPurge
+	while [[ "$1" != "$Sep" ]]; do
+		[[ $# -ge 1 ]] || FATAL 1 "Internal error: no end-of-element separator '${Sep}' found."
+		ElementsToPurge+=( "$1" )
+		shift
+	done
+	shift
+	
+	local Value ElementsToPurge
+	for Value in "$@" ; do
+		for ElementsToPurge in "${ElementsToPurge[@]}" ; do
+			[[ "$Value" == "$ElementsToPurge" ]] && continue 2
+		done
+		echo "$Value"
+	done
+} # PurgeFromList()
+
+
 function FileFromDescriptor() {
 	# Prints the file associated to the descriptor
 	local -i Descriptor="$1"
@@ -806,7 +836,6 @@ function Execute() {
 	return $ExitCode
 } # Execute()
 
-
 function TransferData() {
 	#
 	# Usage:  TransferData  Destination Sources ...
@@ -815,15 +844,14 @@ function TransferData() {
 	shift
 	local -a Sources=( "$@" )
 	local -a Options=( "${TransferOptions[@]}" )
-	local -a FilteredSSHoptions
-	local -i iOption
-	for (( iOption = 0 ; iOption < "${#ssh_options[@]}" ; ++iOption )); do
-		local Option="${ssh_options[iOption]}"
-		case "$Option" in
-			( '-X' | '-x' | '-Y' | '-y' ) continue ;; # skip these options
-		esac
-		FilteredSSHoptions+=( "\"${Option}\"" )
-	done
+	
+	# coprocs are cool, but handling lists from/to functions is still cumbersome
+	local -a FilterListCoproc FilteredSSHoptions
+	coproc FilterListCoproc { PurgeFromList -- '-x' '-X' '-y' '-Y' -- "${ssh_options[@]}" ; }
+	readarray -t -u "${FilterListCoproc[0]}" FilteredSSHoptions
+	wait "$FilterListCoproc_PID"
+	LASTFATAL "Error while running PurgeFromList() in TransferData()"
+	
 	[[ "${#Options[@]}" == 0 ]] && Options=( "${transfer_default_options[@]}" )
 	# option quoting here is poor
 	Execute rsync "${Options[@]}" -e "ssh${FilteredSSHoptions:+ ${FilteredSSHoptions[*]}}" "${Sources[@]}" "$Destination"
@@ -1845,8 +1873,8 @@ case "$MODE" in
 		TunnelOptions=( "${Tunnels[@]}" -o 'ExitOnForwardFailure yes' -o 'TCPKeepAlive yes' -o 'ServerAliveInterval 15' )
 		[[ "${#Command[@]}" == 0 ]] && TunnelOptions+=( '-N' )
 		isFlagSet GoBackground && TunnelOptions+=( '-f' )
-		isIP6 "$TunnelTargetHost" || TunnelOptions+=( '-4' )
-		Execute $ssh -l "$RemoteUser" "${ssh_options[@]}" "${TunnelOptions[@]}" "$RemoteHostID" "${Command[@]}"
+		# isIP6 "$TunnelTargetHost" || TunnelOptions+=( '-4' ) # this option gave issues with FNAL tunnel to iFix
+		Execute $ssh ${AsRemoteUser:+-l "$AsRemoteUser"} "${ssh_options[@]}" "${TunnelOptions[@]}" "$RemoteHostID" "${Command[@]}"
 		ExitCode=$?
 		;;
 
@@ -1863,7 +1891,12 @@ case "$MODE" in
 		  '-o' 'StrictHostKeyChecking=no'
 		  )
 		echo "Opening SOCKS5 proxy (port ${LocalPort}) to ${RemoteHostID}..."
-		Execute $ssh -l "$RemoteUser" "${ProxyOptions[@]}" "$RemoteHostID"
+		declare -a FilteredSSHoptions
+		coproc FilterListCoproc { PurgeFromList -- '-x' '-X' '-y' '-Y' -- "${ssh_options[@]}" ; }
+		readarray -t -u "${FilterListCoproc[0]}" FilteredSSHoptions
+		wait "$FilterListCoproc_PID"
+		LASTFATAL "Error while running PurgeFromList()"
+		Execute $ssh ${AsRemoteUser:+-l "$AsRemoteUser"} "${FilteredSSHoptions[@]}" "${ProxyOptions[@]}" "$RemoteHostID"
 		# some feedback... we don't know the PID of SSH unfortunately
 		[[ $ExitCode == 0 ]] && ifFlagSet GoBackground "Done."
 		ExitCode=$?
