@@ -1697,6 +1697,30 @@ function SetColors() {
 	fi
 } # SetColors()
 
+###
+### Bash-related
+###
+
+function betterSource() {
+	# 
+	# Usage:  betterSource ScriptName [arguments]
+	#
+	# Sources the specified script with the specified command line arguments.
+	# Compared to the built-in `source` command, this one does not add the current argument values
+	# when it's called without arguments (i.e. a call without `arguments` always results
+	# into sourcing `ScriptName` with no command line arguments).
+	#
+	# Implementation note: an implementation like `builtin source "$@"` would incur
+	# in the same problem as the built-in source. In this case, `betterSource ScriptName`
+	# would result in `source "$ScriptName" "$ScriptName"`, since `source` would implicitly
+	# append all the arguments of this function (that is, just the script name) to the command.
+	#
+	local ScriptName="$1"
+	shift
+	builtin source "$ScriptName" "$@"
+} # betterSource()
+
+
 
 ###
 ###  unsorted
