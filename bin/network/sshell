@@ -120,6 +120,8 @@ function help_common() {
 	--verbose
 	    increases the verbosity of the program (e.g. prints the commands it
 	    executes)
+	--sshverbose[=LEVEL] , -v
+	    increases the verbosity of SSH; can be specified multiple times
 	--quiet
 	    decreases the verbosity of the command
 
@@ -728,6 +730,27 @@ function Max() {
 } # Max()
 
 
+function countLetter() {
+	# Prints the number of times a <letter> is repeated in "string".
+	# Letters other than <letter> are ignored, but the count of non-<letter> characters
+	# in "string" is returned as return code.
+	# 
+	# countLetter  "string" <letter>
+	# 
+	local S="$1"
+	local letter="$2"
+	
+	local -i n="${#S}"
+	local -i count=0
+	local i
+	for (( i = 0 ; i < $n ; ++i )); do
+		[[ "${S:${i}:1}" == "$letter" ]] && let ++count
+	done
+	echo "$count"
+	return $(( n - count ))
+} # countLetter()
+
+
 function RedirectOutput() {
 	# Redirects the specified file descriptor to a specified file, and prints
 	# the previous one.
@@ -1011,6 +1034,13 @@ function parse_options_common() {
 			( "--debug" )         DEBUG=1 ;;
 			( "--debug="* )       DEBUG="${Param#--*=}" ;;
 			( "--verbose" )       let ++VERBOSE ;;
+			( "--sshverbose" )    let ++SSHverbose ;;
+			( "--sshverbose="* )  SSHverbose="${Param#--*=}" ;;
+			( "-v"* )
+				local -i VerbosityIncrease
+				VerbosityIncrease="$(countLetter "${Param#-}" 'v')" || FATAL 1 "Spurious characters in verbosity option '${Param}'."
+				let SSHverbose+=VerbosityIncrease
+				;;
 			( "--quiet" )         let ++QUIET ;;
 
 			# SSH options
@@ -1494,7 +1524,7 @@ function set_environment_ping() {
 declare MODE=""
 declare -i NoMoreOptions=0
 
-declare -i DEBUG=0 QUIET=0 VERBOSE=0 FAKE=0
+declare -i DEBUG=0 QUIET=0 VERBOSE=0 SSHverbose=0 FAKE=0
 
 declare RemoteUser="$USER" RemoteHost='' RemoteDomain=''
 declare RemoteHostPrefix='' RemoteHostSuffix=''
@@ -1578,7 +1608,7 @@ while [[ $iParam -lt $nParams ]]; do
 
 done
 
-
+[[ "$SSHverbose" -gt 0 ]] && ssh_options+=( "-$(printf '%0*s' "$SSHverbose" | tr ' ' 'v')" )
 [[ ${#SSHjumps[@]} -gt 0 ]] && ssh_options+=( "-J$(JoinStrings ',' "${SSHjumps[@]}")" )
 
 isFlagSet NoDefaultSSHoptions || ssh_options=( "${ssh_default_options[@]}" "${ssh_options[@]}" )
