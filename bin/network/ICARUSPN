@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+# sourcing is important to have the script name propagated
+source sshell --autohost='ICARUSPN' --domain='fnal.gov' --user='petrillo' --jump='icarus-gateway03.fnal.gov' "$@"
