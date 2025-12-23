@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+# GetTicket.sh
+source slac --noticket --asuser='neutrino' "$@"
+

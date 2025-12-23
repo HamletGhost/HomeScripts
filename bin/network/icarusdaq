@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+declare Gateway='icarus-gateway03'
+
+[[ "$Gateway" =~ \.fnal\.gov$ ]] || Gateway+='.fnal.gov'
+echo "Hopping into ICARUS DAQ via gateway '${Gateway}'..."
+
+source fnal --jump="$Gateway" "$@"
+
