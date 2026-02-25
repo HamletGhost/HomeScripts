@@ -7,7 +7,7 @@
 #
 
 if [[ "$(basename -- "$0")" == "DirMap" ]]; then
-	Version="1.1"
+	Version="1.2"
 	ScriptName="$(basename "$0")"
 	
 	: ${DirMapHelpMessage:="Prints the directory corresponding to the specified key."}
@@ -16,13 +16,15 @@ if [[ "$(basename -- "$0")" == "DirMap" ]]; then
 		cat <<-EOH
 		${DirMapHelpMessage}
 		
-		Usage:  ${ScriptName}  [options] DirKey
+		Usage:  ${ScriptName}  [options] DirKey [ExtraPath ...]
 		
 		Options are read from all files in list of directories, in this order:
 		../params/dirmap.d , ./dirmap.d, ./params/dirmap.d, ../dirmap.d and
 		the content of DIRMAP_MAPS variable (currently: '${DIRMAP_MAPS}'), where
 		"." is the directory where the DirMap script resides and the input from
 		the later directories overrides the previous.
+		If DirKey includes directory separators ('/'), the part following the first
+		one is also considered an extra path.
 		
 		Options:
 		--list , -l
@@ -48,17 +50,31 @@ if [[ "$(basename -- "$0")" == "DirMap" ]]; then
 		STDERR "FATAL ERROR(${Code}): $*"
 		exit $Code
 	} # FATAL
+	function PrintColor() {
+		# Prints the specified message with the color ANSI code in the first argument
+		local Color="$1"
+		shift
+		if [[ "${UseColor:-1}" != 0 ]]; then
+			printf "${Color}${*}\e[0m"
+		else
+			printf "$*"
+		fi
+	} # PrintColor()
 	
 	
-	
-	declare DEBUG=0 DoHelp=0 DoVersion=0 DoShowKeysMap=0 DoPrintKeysList=0 DoVerify=0
+	declare DEBUG=0 DoTrace=0 DoHelp=0 DoVersion=0 DoShowKeysMap=0 DoPrintKeysList=0 DoVerify=0 UseColor=0
+	[[ -t 1 ]] && UseColor=1 # use color by default only if file descriptor 1 (stdout) is a terminal
 	declare DirKey
 	declare NoMoreOptions=0
 	for ((iParam = 1; iParam <= $# ; ++iParam)); do
 		Param="${!iParam}"
 		if [[ "${Param:0:1}" != '-' ]] || isFlagSet NoMoreOptions ; then
-			[[ -n "$DirKey" ]] && FATAL 1 "Directory key specified twice ('${DirKey}' first, then '${Param})"
-			DirKey="$Param"
+			if [[ -z "$DirKey" ]]; then
+				DirKey="${Param%%/*}"
+				[[ "$DirKey" != "$Param" ]] && ExtraPath+="/${Param#*/}"
+			else
+				ExtraPath+="/${Param#/}"
+			fi
 		else
 			case "$Param" in
 				( '--list' | '-l' )
@@ -85,6 +101,15 @@ if [[ "$(basename -- "$0")" == "DirMap" ]]; then
 					;;
 				( '--debug' | '-d' )
 					DEBUG=1
+					;;
+				( '--trace' | '-t' )
+					DoTrace=1
+					;;
+				( '--color' )
+					UseColor=1
+					;;
+				( '--nocolor' | '--no-color')
+					UseColor=0
 					;;
 			esac
 		fi
@@ -126,10 +151,9 @@ if [[ "$(basename -- "$0")" == "DirMap" ]]; then
 	} # GetHome()
 	#############################################################################
 	
-	function GetFirstAliasIndex() {
-		local PathSpecVarName="$1"
-		
-		local PathType="${!PathSpecVarName[0]}"
+	function GetPathTypeNParams() {
+		# Prints the number of parameters index in a specification of type `PathType`
+		local PathType="$1"
 		local NParams=0
 		
 		# first determine how many parameters we have, so that we can find where the aliases are
@@ -145,6 +169,15 @@ if [[ "$(basename -- "$0")" == "DirMap" ]]; then
 		esac
 		echo "$NParams"
 		return 0
+	} # GetPathTypeNParams()
+	
+	function GetFirstAliasIndex() {
+		# Returns the index of the first alias in the specified specification
+		
+		local PathSpecVarName="$1"
+		# the first alias is after all the parameters, so it has the index of NParams
+		GetPathTypeNParams "${!PathSpecVarName[0]}"
+		
 	} # GetFirstAliasIndex()
 	
 	function GetNArgs() {
@@ -155,25 +188,7 @@ if [[ "$(basename -- "$0")" == "DirMap" ]]; then
 		echo "$((NParams - 1))"
 	} # GetNArgs()
 	
-	function GetPathType() {
-		local PathSpecVarName="$1"
-		local PathType="${!PathSpecVarName[0]}"
-		local NParams=0
-		
-		case "$PathType" in
-			( '@path@' ) echo "Path" ;;
-			( '@based@' ) echo "Relative path" ;;
-			( '@alias@' ) eval "GetPathType \"\${${PathSpecVarName}[1]}\"" ;;
-			( '@func@' ) echo "Function" ;;
-			( '@func'*'@' ) echo "Function with $(GetNArgs ) arguments" ;;
-			( * )
-				echo "Unsupported ('${PathType}')"
-				return 1
-		esac
-		return 0
-	} # GetPathType()
-	
-	function GetPathAliases() {
+	function PrintPathAliases() {
 		local PathSpecVarName="$1"
 		
 		local iFirstAlias=$(GetFirstAliasIndex "$PathSpecVarName")
@@ -182,55 +197,41 @@ if [[ "$(basename -- "$0")" == "DirMap" ]]; then
 		
 		local -a Items
 		eval "Items=( \"\${${PathSpecVarName}[@]}\" )"
-		# check if the any of the aliases matches
-		local iAlias=$iFirstAlias
-		for (( iAlias=$iFirstAlias ; iAlias < ${#Items[@]} ; ++iAlias )); do
-			echo "${Items[iAlias]}"
-		done
+		printf "%s\n" "${Items[@]:${iFirstAlias}}"
 		return 0
-	} # GetPathAliases()
+	} # PrintPathAliases()
 	
 	function BuildPath() {
 		local PathSpecVarName="$1"
 		
-		local PathType="${!PathSpecVarName[0]}"
+		# PathSpec is a copy of the content of the path in PathSpecVarName
+		eval 'local -a PathSpec=( "${'${PathSpecVarName}'[@]}" )'
+		
+		local PathType="${PathSpec[0]}"
 		case "$PathType" in
 			( '@path@' ) ### a simple path ########################################
-				local Path
-				eval "Path=\"\${${PathSpecVarName}[1]}\""
-				echo "$Path"
+				echo "${PathSpec[1]}"
 				;;
 			
 			( '@alias@' ) ### an explicit alias to another path ###################
-				local BaseKey
-				eval "BaseKey=\"\${${PathSpecVarName}[1]}\""
-				ParsePaths "$BaseKey"
+				FindPath "${PathSpec[1]}"
 				ExitCode=$?
 				;;
 			
 			( '@based@' ) ### a path on top of another known path #################
-				local BaseKey AppendPath
-				eval "BaseKey=\"\${${PathSpecVarName}[1]}\""
-				eval "AppendPath=\"\${${PathSpecVarName}[2]}\""
-				
-				DBG "Base: '${BaseKey}' + '${AppendPath}'"
-				local BasePath="$(ParsePaths "$BaseKey")"
+				DBG "Base: '${PathSpec[1]}' + '${PathSpec[2]}'"
+				local BasePath="$(FindPath "${PathSpec[1]}")"
 				if [[ $? != 0 ]]; then
-					echo "Internal error: base path '${BaseKey}' in specification '${PathSpecVarName}' not known" >&2
+					echo "Internal error: base path '${PathSpec[1]}' in specification '${PathSpecVarName}' not known" >&2
 					BasePath=''
 				fi
-				echo -n "$BasePath"
-				[[ -n "$BasePath" ]] && [[ -n "$AppendPath" ]] && echo -n '/'
-				echo "$AppendPath"
+				local AppendPath="${PathSpec[2]}"
+				echo "${BasePath}${AppendPath:+"/${AppendPath}"}"
 				;;
 			( '@func'*'@' ) ### a function call with * parameters #################
-				local FunctionName
-				local -a FunctionArgs
-				eval "FunctionName=\"\${${PathSpecVarName}[1]}\""
-				local iArg iFirstAlias=$(GetFirstAliasIndex "$PathSpecVarName")
-				for (( iArg = 2 ; iArg < iFirstAlias ; ++iArg )); do
-					eval "FunctionArgs=( \"\${FunctionArgs[@]}\" \"\${${PathSpecVarName}[$iArg]}\""
-				done
+				local iFirstAlias=$(GetFirstAliasIndex "$PathSpecVarName")
+				local FunctionName="${PathSpec[1]}"
+				local -a FunctionArgs=( "${PathSpec[@]:2:$iFirstAlias - 1}" )
 				DBG "Function with $((iFirstAlias-1)) parameters: ${FunctionName}(${FunctionArgs[@]})"
 				"$FunctionName" "${FunctionArgs[@]}"
 				ExitCode=$?
@@ -240,76 +241,53 @@ if [[ "$(basename -- "$0")" == "DirMap" ]]; then
 		return $ExitCode
 	} # BuildPath()
 	
-	
-	function ParsePath() {
-		local Keyword="$(tr '[:upper:]' '[:lower:]' <<< "$1")"
-		local PathSpecVarName="$2"
-		
-		# first determine how many parameters we have, so that we can find where the aliases are
-		local iFirstAlias
-		iFirstAlias=$(GetFirstAliasIndex "$PathSpecVarName")
-		local ExitCode=$?
-		[[ $ExitCode != 0 ]] && return $ExitCode
-		
-		# check if the any of the aliases matches
-		local iAlias=0
-		for Alias in $(GetPathAliases "$PathSpecVarName") ; do
-			let ++iAlias
-			Alias="$(tr '[:upper:]' '[:lower:]' <<< "$Alias" )"
-			
-			DBG "Compare alias '${Alias}' with '${Keyword}'"
-			[[ "$Alias" == "$Keyword" ]] && break
-		done
-	#	if [[ $iAlias == 0 ]]; then
-	#		echo "Internal error: specification '${PathSpecVarName}' has $((iFirstAlias - 1)) parameters and no aliases" >&2
-	#		return 2
-	#	fi
-		[[ "$Alias" == "$Keyword" ]] || return 1 # no match, goodbye
-		
-		BuildPath "$PathSpecVarName"
-		return $? # redundant...
-	} # ParsePath()
-	
 	function PresentPath() {
 		local PathVarName="$1"
 		local Verify="${2:-0}"
-		
-		local -a Aliases
-		Aliases=( $(GetPathAliases "$PathVarName") )
+		local -i ExitCode=0
+		local -a Aliases=( $(PrintPathAliases "$PathVarName") )
 		
 		[[ ${#Aliases[@]} -gt 0 ]] || return 1
 		
 		local ExpandedPath="$(BuildPath "$PathVarName")"
-		echo -n "${Aliases[0]}"
+		
+		local Color
+		local Accessible
 		if isFlagSet Verify ; then
-			if [[ ! -x "$ExpandedPath" ]] || [[ ! -d "$ExpandedPath" ]]; then
-				echo -n " [NOT ACCESSIBLE]"
+			if [[ -x "$ExpandedPath" ]] && [[ -d "$ExpandedPath" ]]; then
+				Accessible=1
+				Color="\e[1;32m"
+			else
+				Accessible=0
+				Color="\e[1;31m"
 			fi
+			ResetColor="\e[0m"
+		fi
+		
+		PrintColor "$Color" "${Aliases[0]}"
+		if isFlagSet Verify && ! isFlagSet Accessible ; then
+			echo -n " [NOT ACCESSIBLE]"
+			ExitCode=2
 		fi
 		echo -n "  => '${ExpandedPath}'"
 		if [[ ${#Aliases[@]} -gt 1 ]]; then
 			echo -n " (also: ${Aliases[1]}"
-			local -i iAlias
-			for (( iAlias = 2 ; iAlias < ${#Aliases[@]} ; ++iAlias )); do
-				echo -n ", ${Aliases[iAlias]}"
-			done
+			printf ", %s" "${Aliases[@]:2}"
 			echo -n ")"
 		fi
 		echo
-		return 0
+		return $ExitCode
 	} # PresentPath()
 	
 	
-	function ParsePaths() {
-		local Keyword="$(tr '[:upper:]' '[:lower:]' <<< "$1")"
-		DBG "Keyword: '${Keyword}'"
-		local PathVarName
-		for PathVarName in "${!PathSpec_@}" ; do
-			DBG "Trying: '${PathVarName}'"
-			ParsePath "$Keyword" "$PathVarName" && return 0
-		done
-		return 1 # no match
-	} # ParsePaths()
+	function FindPath() {
+		# Looks up all the entries for `keyword` alias, prints the path of the matched entry
+		local keyword="${1,,}"
+		DBG "Keyword: '${keyword}'"
+		local PathVarName="${PathSpecIndex["$keyword"]}"
+		[[ -n "$PathVarName" ]] || return 1
+		BuildPath "$PathVarName"
+	} # FindPath()
 	
 	function PresentPaths() {
 		local PathVarName
@@ -319,35 +297,33 @@ if [[ "$(basename -- "$0")" == "DirMap" ]]; then
 		done
 	} # PresentPaths()
 	
+	function PrintNEntries() {
+		# Prints the number of entries (does not include implicit aliases).
+		local -a PathVarNames
+		PathVarNames=( "${!PathSpec_@}" )
+		echo "${#PathVarNames[@]}"
+	} # PrintNEntries()
+	
 	function PrintAllAliases() {
 		local PathVarName
 		for PathVarName in "${!PathSpec_@}" ; do
-			GetPathAliases "$PathVarName" || return 1
+			PrintPathAliases "$PathVarName" || return 1
 		done
 		return 0
 	} # PrintAllAliases()
 	
-	
 	function ReloadDirMaps() {
+		# Forces the reload of all map entries.
+		# 
+		# It creates (via `RegisterDirMapEntry()`) a `PathSpec_<keyword>` for each
+		# entry in the map, and an entry `PathSpecIndex[<alias>]` for each alias
+		# of that entry (including the key).
+		#
 		# TODO needs some decent error handling...
 		
 		function GetKeyIndex() {
-			# NOTE copied from GetFirstAliasIndex above... not that safe
-			local PathType="$1"
-			local NParams=0
-			
-			case "$PathType" in
-				( '@path@' ) NParams=2 ;;
-				( '@based@' ) NParams=3 ;;
-				( '@alias@' ) NParams=2 ;;
-				( '@func@' ) NParams=2 ;; # equivalent to '@func0@'
-				( '@func'*'@' ) NParams="${PathType#@func}" ; NParams="$(( ${NParams%@} + 2))" ;;
-				( * )
-					echo "Internal error: path type '${PathType}' in specification '${PathSpecVarName}' not supported" >&2
-					return 2
-			esac
-			echo "$NParams"
-			return 0
+			# Returns the index of the first alias (= key) of a map entry specification.
+			GetPathTypeNParams "$1"
 		} # GetKeyIndex()
 		
 		function RegisterDirMapEntry() {
@@ -360,6 +336,13 @@ if [[ "$(basename -- "$0")" == "DirMap" ]]; then
 			local Key="${Parameters[$KeyIndex]}"
 			local VarName="PathSpec_${Key}"
 			eval "${VarName}=( \"\${Parameters[@]}\" ) ; export \"$VarName\""
+			
+			# update the index
+			local Alias
+			for Alias in "${Parameters[@]:$KeyIndex}" ; do
+				PathSpecIndex["${Alias,,}"]="$VarName"
+			done
+			
 		} # RegisterDirMapEntry()
 		
 		function LoadDefaultEntries() {
@@ -420,20 +403,72 @@ if [[ "$(basename -- "$0")" == "DirMap" ]]; then
 			LoadMapFromDirectory "$SourceDir"
 		done # SourceDir
 		
-		unset -f LoadMapFromExecutable LoadMapFromDataFile
+		unset -f LoadMapFromExecutable LoadMapFromDataFile LoadMapFromDirectory
 		
 	} # ReloadDirMaps()
 	
-	declare Keyword="${1%%/*}"
 	
+	function LoadDirMaps() {
+		# Loads the maps only if they haven't been loaded yet.
+		areDirMapsLoaded || ReloadDirMaps
+	} # LoadDirMaps()
+	
+	
+	function areDirMapsLoaded() {
+		# Returns 0 if some maps are loaded
+		
+		# we assume that there are always default entries in the map
+		local -i NEntries
+		NEntries=$(PrintNEntries)
+		[[ $NEntries -gt 0 ]]
+		
+	} # areDirMapsLoaded()
+	
+	
+	function CompleteKey() {
+		# Prints all the possible completions of the specified keyword, space-separated;
+		# an exact match is always printed out first.
+		# Returns success (0) if only one key matches;
+		# 1 if there are multiple matching keys, 2 if no key matches,
+		# 3 if the key stub is not valid
+		# 
+		
+		local key="${1,,}"
+		
+		local -a MatchedKeys # array variable storing the possible completions
+		
+		local DirKey
+		local ExactMatch # track an exact match, but don't immediately add it
+		for DirKey in $(DirMap --list) ; do
+			[[ "${DirKey,,}" == ${key} ]]  && ExactMatch="$DirKey"       && continue
+			[[ "${DirKey,,}" =~ ^${key} ]] && MatchedKeys+=( "$DirKey" ) && continue
+		done
+		
+		[[ -n "$ExactMatch" ]] && MatchedKeys=( "$ExactMatch" "${MatchedKeys[@]}" )
+		[[ "${#MatchedKeys[*]}" -gt 0 ]] && echo "${MatchedKeys[*]}"
+		case "${#MatchedKeys[*]}" in
+			( 1 )
+				return 0
+			( 0 )
+				return 2
+			( * )
+				return 1
+		esac
+	} # CompleteKey()
+	
+	declare -A PathSpecIndex  # global
+	
+	declare Keyword="${DirKey%%/*}"
+	
+	isFlagSet DoTrace && set -x
 	if isFlagSet DoPrintKeysList ; then
-		ReloadDirMaps
+		LoadDirMaps
 		PrintAllAliases
 		exit $?
 	fi
 	
 	if isFlagSet DoShowKeysMap ; then
-		ReloadDirMaps
+		LoadDirMaps
 		PresentPaths "$DoVerify"
 		exit $?
 	fi
@@ -443,13 +478,10 @@ if [[ "$(basename -- "$0")" == "DirMap" ]]; then
 		FATAL 1 "Need to specify a directory key."
 	fi
 	
-	declare ExtraPath
-	[[ "$Keyword" == "$1" ]] || ExtraPath="/${1#*/}"
-	
-	ReloadDirMaps
+	LoadDirMaps
 	
 	declare Path
-	Path="$(set +x ; ParsePaths "$Keyword")"
+	Path="$(isFlagSet DoTrace && set -x ; FindPath "$Keyword")"
 	ExitCode=$?
 	if [[ $ExitCode != 0 ]]; then
 		echo "Path to '${Keyword}' not known." >&2
@@ -457,6 +489,7 @@ if [[ "$(basename -- "$0")" == "DirMap" ]]; then
 	fi
 	
 	echo "${Path}${ExtraPath}"
+	set +x
 	
 else
 	function goto() {
@@ -478,27 +511,50 @@ else
 	}
 	
 	
+	function DirMapCompleteKey() {
+		# completion of the keyword mentioned: prints the matches, space-separated;
+		# an exact match is always printed out first.
+		# Returns success (0) if only one key matches;
+		# 1 if there are multiple matching keys, 2 if no key matches,
+		# 3 if the key stub is not valid
+		# 
+		# Gets the full map keys from `DirMap --list`.
+		# 
+		
+		local key="${1,,}"
+		
+		local -a MatchedKeys # array variable storing the possible completions
+		
+		local DirKey
+		local ExactMatch # track an exact match, but don't immediately add it
+		for DirKey in $(DirMap --list) ; do
+			[[ "${DirKey,,}" == ${key} ]]  && ExactMatch="$DirKey"       && continue
+			[[ "${DirKey,,}" =~ ^${key} ]] && MatchedKeys+=( "$DirKey" ) && continue
+		done
+		
+		[[ -n "$ExactMatch" ]] && MatchedKeys=( "$ExactMatch" "${MatchedKeys[@]}" )
+		[[ "${#MatchedKeys[*]}" -gt 0 ]] && echo "${MatchedKeys[*]}"
+		case "${#MatchedKeys[*]}" in
+			( 1 )
+				return 0
+			( 0 )
+				return 2
+			( * )
+				return 1
+		esac
+	} # DirMapCompleteKey()
+	
+	
 	function _BashCompletion_DirMap() {
 		# auto-completion of the thing being set up;
 		# choice among the candidates in the blessed directories
 		
-		# Pointer to current completion word.
-		# By convention, it's named "cur" but this isn't strictly necessary.
 		local Cur="${COMP_WORDS[COMP_CWORD]}"
-		local cur="$(tr '[:upper:]' '[:lower:]' <<< "$Cur")"
-		
-		COMPREPLY=()   # Array variable storing the possible completions.
-		
-		local DirKey
-		for DirKey in $(DirMap --list) ; do
-			local dirkey="$(tr '[:upper:]' '[:lower:]' <<< "$DirKey")"
-			[[ "${dirkey#${cur}}" == "$dirkey" ]] && continue
-			COMPREPLY=( "${COMPREPLY[@]}" "$DirKey" )
-		done
-		
+		COMPREPLY=( $(DirMapCompleteKey "$Cur") )
 		return 0
+		
 	} # _BashCompletion_DirMap()
 	
-	complete -F _BashCompletion_DirMap DirMap goto jumpto
+	complete -F _BashCompletion_DirMap DirMap goto jumpto DirMapCompleteKey
 	
 fi
