@@ -34,6 +34,7 @@ declare PrefixPath="${PrefixBase%/}/${PrefixName}"
 
 echo "Starting '${Program}' in '${PrefixName}' Wine area ('${PrefixPath}')"
 
+export WINEDEBUG WINEPATH WINEDLLPATH WINEDLLOVERRIDES WINE_D3D_CONFIG
 export WINEPREFIX="$PrefixPath"
 $wine "${WineOpts[@]}" "$Program" "${ProgramOptions[@]}"
 res="$?"
