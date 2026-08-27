@@ -58,7 +58,7 @@ by the rename value. The value is subject to tag replacement (see the paragraph
 above). If the target name is already used by another file, the program will
 immediately interrupt with an error.
 """
-__version__ = "1.4"
+__version__ = "1.5"
 
 
 import sys
@@ -295,6 +295,7 @@ class ProcessorClass:
       self.commentKeys = set()
       self.baseDirectory = ''
       self.pause = options.PauseTime if options else 0.0
+      self.doVorbisComments = dict(yes=True, no=False, auto=None)[options.VorbisTags.lower()]
    # __init__()
    
    def ParseFile(self, InputSpecs):
@@ -409,7 +410,16 @@ class ProcessorClass:
    # ExtractTags()
    
    
-   def OutputElement(self, item, iElem, nElem):
+   def SetVorbisCommentOn(self, fileName):
+      """Returns whether `fileName` should be given a Vorbis comment."""
+      if self.doVorbisComments is not None: return bool(self.doVorbisComments)
+      for suffix in ( '.ogg', '.oga', '.vorbis' ):
+        if fileName.endswith(suffix): return True
+      return False
+   # SetVorbisCommentOn()
+   
+   
+   def OutputID3Element(self, item, iElem, nElem):
       try:
          InputFile = item['InputFile']
       except KeyError:
@@ -474,6 +484,65 @@ class ProcessorClass:
       
       return cmds
       
+   # OutputID3Element()
+   
+   
+   def OutputVorbisElement(self, item, iElem, nElem):
+      try:
+         InputFile = item['InputFile']
+      except KeyError:
+         raise RuntimeError("No file specified for item %d!", iElem)
+      
+      tagValues = self.ExtractTags(item)
+      
+      cmds = []
+      
+      cmd = [ "vorbiscomment", "--quiet", "--append" ]
+      
+      addTag = lambda tagKey, value: cmd.extend(
+         ( '-d', tagKey.upper(), '-t', f"{tagKey.upper()}={value}" )
+         )
+      
+      for key in ( 'Album', 'Artist', ( 'Year', 'DATE' ), 'Title' ):
+         key, tagKey = (key, key) if isinstance(key, str) else key
+         try:
+            addTag(tagKey.upper(), item[key])
+         except KeyError: pass
+      # for
+      
+      if (Genre := item.get('Genre', None)):
+         GenreName = ID3GenresClass.Genre(Genre)
+         if not GenreName:
+            logging.warning("Unknown genre for '%s': '%s'", InputFile, Genre)
+         attTag('GENRE', GenreName)
+      # if
+      
+      iTrack = item.get('TrackNo', iElem + 1)
+      try:
+         iTrack, nTracks = map(int, iTrack.split('/', 1))
+      except (ValueError, AttributeError, ):
+         nTracks = item.get('NTracks', nElem)
+      addTag('TRACKNUMBER', iTrack) # no place for nTracks anyway
+      
+      for comment in item.get('Comments', []):
+         self.ValidateComment(comment)
+         addTag('COMMENT', comment)
+      # for
+      
+      cmd.append(InputFile)
+      cmds.append(BashQuoterClass.QuoteList(cmd))
+      
+      return cmds
+      
+   # OutputVorbisElement()
+   
+   
+   def OutputElement(self, item, iElem, nElem, fmt='ID3'):
+     match fmt:
+       case 'ID3':    outputElement = self.OutputID3Element
+       case 'Vorbis': outputElement = self.OutputVorbisElement
+       case _: raise RuntimeError(f"Logic error: format '{fmt}' not supported.")
+     return outputElement(item, iElem, nElem)
    # OutputElement()
    
    
@@ -486,14 +555,14 @@ class ProcessorClass:
          Album = item.get('Album', PreviousAlbum)
          if Album != PreviousAlbum:
             PreviousAlbum = Album
-            cmd = ( 'echo', "Tagging album: '{}'".format(Album), )
+            cmd = ( 'echo', f"Tagging album: '{Album}'", )
             print(" ".join(BashQuoterClass.QuoteList(cmd)), file=OutputFile)
          # if new album
          
          try:
             InputFile = item['InputFile']
          except KeyError:
-            raise RuntimeError("No file specified for item %d!", iItem)
+            raise RuntimeError(f"No file specified for item {iItem}!")
          if (iItem > 0) and (self.pause > 0.0):
             cmd = ( 'sleep', str(self.pause), )
             print(" ".join(cmd), file=OutputFile)
@@ -501,13 +570,19 @@ class ProcessorClass:
          
          cmd = (
            'echo',
-           "[{0:0{2}d}/{1:0{2}d}] Processing '{3}'".format(iItem+1, nItems, Padding, InputFile)
+           f"[{iItem+1:0{Padding}d}/{nItems:0{Padding}d}] Processing '{InputFile}'"
          )
          print(" ".join(BashQuoterClass.QuoteList(cmd)), file=OutputFile)
          
-         cmds = self.OutputElement(item, iItem, nItems)
+         cmds = self.OutputElement(item, iItem, nItems, fmt='ID3')
          for cmd in cmds:
             print(" ".join(cmd), file=OutputFile)
+         
+         if self.SetVorbisCommentOn(InputFile):
+            cmds = self.OutputElement(item, iItem, nItems, fmt='Vorbis')
+            for cmd in cmds:
+                print(" ".join(cmd), file=OutputFile)
+         # if Vorbis comment
          
       # for
       cmd = [ 'echo', "Done." ]
@@ -552,8 +627,12 @@ if __name__ == "__main__":
    parser.add_argument('--genres', action='store_true', dest='ListGenres',
      help="List all supported genres")
    parser.add_argument('--pause', action='store', dest='PauseTime', type=float,
-     help="waits for this number of seconds after each tagging [%(default]",
+     help="waits for this number of seconds after each tagging [%(default)f]",
      default=0.0)
+   parser.add_argument('--vorbis', dest='VorbisTags', action='store',
+     choices=( 'no', 'yes', 'auto' ), type=str, default='auto',
+     help="also sets tags as Vorbis comments (auto=only on .ogg files)",
+     )
    parser.add_argument('--version', action='version',
      version='%(prog)s v' + __version__)
    
