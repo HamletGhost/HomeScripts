@@ -409,6 +409,7 @@ include "%L"
 <Multi_key> <a> <n> <d>             : "∧"  U2227   # LOGICAL AND
 <Multi_key> <o> <r>                 : "∨"  U2228   # LOGICAL OR
 <Multi_key> <p> <e> <r> <p>         : "⟂"  U27C2   # PERPENDICULAR
+<Multi_key> <percent> <0>           : "‰"  U2030   # PERMILLE
 
 <Multi_key> <S> <U> <M> : "∑"   U2211     # N-ARY SUMMATION
 <Multi_key> <S> <u> <m> : "∑"   U2211     # N-ARY SUMMATION
