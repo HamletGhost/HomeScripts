@@ -1,4 +1,14 @@
 #!/usr/bin/env bash
 
-# sourcing is important to have the script name propagated
-source sshell --autohost='sshlac' --domain='slac.stanford.edu' --user='petrillo' "$@"
+# [20260825] `jump.slac.stanford.edu` seems to require MFA at every connection;
+#            S3DF can use public keys (needs to be activated daily though: 
+#              https://s3df-sshkeys.slac.stanford.edu/list/petrillo)
+declare JumpNode='s3dflogin.slac.stanford.edu'
+declare JumpNodeName="${JumpNode%%.*}"
+
+# don't use jump node as intermediate if that's out final destination
+declare DestNode="$(basename "${BASH_SOURCE[0]}")"
+[[ "$DestNode" == "$JumpNodeName" ]] && JumpNode=''
+
+# sourcing is important to have the script name propagated;
+source sshell --autohost='sshlac' --domain='slac.stanford.edu' ${JumpNode:+--jump="$JumpNode"} --user='petrillo' "$@"
