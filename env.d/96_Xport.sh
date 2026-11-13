@@ -17,8 +17,8 @@ function Xport() {
  
     # find a way to autodetect the right port
     if [[ -n "$TMUX" ]]; then
-      # we are in tmux environment: let's ask tmux
-      DisplayLine="$(tmux show-env | grep -E '^DISPLAY=')"
+      # we are in tmux environment: let's ask tmux (may still not be there, e.g. in container)
+      DisplayLine="$(tmux show-env 2> /dev/null | grep -E '^DISPLAY=')"
     
       if [[ "$DisplayLine" =~ DISPLAY=(.*):([0-9]+)\.([0-9]+) ]]; then
         RecommendedHost="${BASH_REMATCH[1]}"
