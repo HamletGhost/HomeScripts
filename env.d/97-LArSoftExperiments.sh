@@ -122,7 +122,8 @@ function grid_proxy() {
 
 function getToken() {
 	local Experiment="${1:-$(isExperiment)}"
-	htgettoken -a 'htvaultprod.fnal.gov' -i "${Experiment,,}"
+#	htgettoken -a 'htvaultprod.fnal.gov' -i "${Experiment,,}"
+	htgettoken --vaultserver='htvaultprod.fnal.gov' --vaulttokenttl='7d' --issuer="${Experiment,,}"
 } # getToken()
 
 
