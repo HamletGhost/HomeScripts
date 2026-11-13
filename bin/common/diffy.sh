@@ -85,6 +85,11 @@ function ProcessInput() {
 	UncompressInput "$FileName" | ApplyFilters "$HeadLines" "${InputFilters[@]}"
 } # ProcessInput()
 
+function TestInput() {
+	local InputSpec="$1"
+	isFlagSet NoExistenceCheck || [[ -r "$InputSpec" ]]
+}
+
 
 function PrintHelp() {
 	cat <<-EOH
@@ -104,6 +109,9 @@ function PrintHelp() {
 	    also the empty lines a second filter \`--filter="grep -v -E '^$'\`can
 	    follow. Note that the quotation of these filter commands is not trivial.
 	    These filters are run via Bash command \`eval\`.
+        --nocheck
+	    do not require the existance of the input files as such
+            (useful when processing them with a filter with special means to find them)
 	--debug[=LEVEL]
 	    enables debug messages up to LEVEL, included. If LEVEL is omitted, it's
 	    set to 1.
@@ -116,6 +124,7 @@ declare -i DEBUG
 declare -i nOptions=0
 declare -a Options
 declare -i HeadLines=0
+declare -i NoExistenceCheck=0
 declare -i nInputs=0
 declare -a Inputs
 declare -a InputFilters
@@ -123,13 +132,14 @@ declare -i NoMoreOptions=0
 for (( iParam = 1 ; iParam <= $# ; ++iParam )); do
 	Param="${!iParam}"
 	
-	if isFlagSet NoMoreOptions || [[ "${Param:0:1}" != '-' ]] && [[ -r "$Param" ]] ; then
+	if isFlagSet NoMoreOptions || [[ "${Param:0:1}" != '-' ]] && TestInput "$Param" ; then
 		Inputs[nInputs++]="$Param"
 	else
 		case "$Param" in
 			( '--width='* ) WIDTH="${Param#--*=}" ;;
 			( '--head='* )  HeadLines="${Param#--*=}" ;;
 			( '--filter='* ) InputFilters+=( "${Param#--filter=}" ) ;;
+			( '--nocheck' ) NoExistenceCheck=1 ;;
 			( '--debug='* ) DEBUG="${Param#--*=}" ;;
 			( '--debug' )   DEBUG=1 ;;
 			( '--help' | '-h' | '-?' ) DoHelp=1 ;;
